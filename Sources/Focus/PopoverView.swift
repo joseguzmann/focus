@@ -223,15 +223,14 @@ struct NoiseControl: View {
     var body: some View {
         let on = timer.prefs.noiseEnabled
         HStack(spacing: 0) {
-            Button { timer.prefs.noiseEnabled.toggle() } label: {
-                Image(systemName: "waveform")
-                    .symbolEffect(.variableColor.iterative, isActive: timer.isNoisePlaying)
-                    .foregroundStyle(on ? Theme.focus : .secondary)
-                    .frame(width: 30, height: 26)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help(on ? "Turn background noise off" : "Turn background noise on")
+            @Bindable var timer = timer
+            Toggle("Background noise", isOn: $timer.prefs.noiseEnabled)
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+                .tint(Theme.focus)
+                .padding(.trailing, 8)
+                .help(on ? "Turn background noise off" : "Turn background noise on")
 
             Menu {
                 ForEach(NoiseType.allCases) { type in
@@ -247,6 +246,9 @@ struct NoiseControl: View {
                 }
             } label: {
                 HStack(spacing: 6) {
+                    Image(systemName: "waveform")
+                        .symbolEffect(.variableColor.iterative, isActive: timer.isNoisePlaying)
+                        .foregroundStyle(on ? Theme.focus : .secondary)
                     Text(timer.prefs.noise.title)
                         .foregroundStyle(on ? .primary : .secondary)
                     Image(systemName: "chevron.down")
@@ -277,7 +279,7 @@ struct NoiseControl: View {
             }
         }
         .font(.system(size: 13))
-        .padding(.leading, 4)
+        .padding(.leading, 10)
         .padding(.trailing, on ? 4 : 12)
         .background(Capsule().fill(on ? Theme.focus.opacity(0.12) : Color.secondary.opacity(0.1)))
     }
