@@ -219,17 +219,14 @@ struct TagPicker: View {
 
 struct NoiseControl: View {
     @Environment(FocusTimer.self) private var timer
-    @State private var hovering = false
-    @State private var showVolume = false
 
     var body: some View {
         @Bindable var timer = timer
         let on = timer.prefs.noiseEnabled
         VStack(spacing: 0) {
             header
-            if showVolume {
-                // Color.clear takes the header's width, so the slider never widens the control.
-                Color.clear
+            // Color.clear takes the header's width, so the slider never widens the control.
+            Color.clear
                     .frame(height: 30)
                     .overlay {
                         HStack(spacing: 8) {
@@ -245,8 +242,6 @@ struct NoiseControl: View {
                         .padding(.horizontal, 14)
                         .padding(.bottom, 4)
                     }
-                    .transition(.opacity)
-            }
         }
         .font(.system(size: 13))
         .fixedSize()
@@ -254,16 +249,6 @@ struct NoiseControl: View {
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .fill(on ? Theme.focus.opacity(0.12) : Color.secondary.opacity(0.1))
         )
-        // Opened from the speaker; stays open while the pointer is anywhere on the control.
-        .onHover { inside in
-            hovering = inside
-            guard !inside else { return }
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(250))
-                guard !hovering else { return }
-                withAnimation(.easeInOut(duration: 0.15)) { showVolume = false }
-            }
-        }
     }
 
     private var header: some View {
@@ -305,8 +290,7 @@ struct NoiseControl: View {
                 .frame(height: 14)
                 .padding(.horizontal, 8)
 
-            // Clicking the speaker turns the noise on/off without touching the pomodoro;
-            // hovering it unfolds the volume below.
+            // Clicking the speaker turns the noise on/off without touching the pomodoro.
             Button { timer.prefs.noiseEnabled.toggle() } label: {
                 Image(systemName: speakerSymbol)
                     .foregroundStyle(on ? Theme.focus : .secondary)
@@ -314,9 +298,7 @@ struct NoiseControl: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .onHover { inside in
-                if inside { withAnimation(.easeInOut(duration: 0.15)) { showVolume = true } }
-            }
+            .help(on ? "Turn noise off (the pomodoro keeps running)" : "Play noise while the pomodoro runs")
         }
         .padding(.leading, 12)
         .padding(.trailing, 6)
