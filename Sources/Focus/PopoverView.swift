@@ -1,35 +1,65 @@
 import SwiftUI
 
 enum Theme {
-    static let focus = Color(red: 0.91, green: 0.47, blue: 0.42)
-    static let rest = Color(red: 0.36, green: 0.68, blue: 0.56)
-    static let track = Color.secondary.opacity(0.45)
+    static let focus = Color(red: 0.91, green: 0.42, blue: 0.36)
+    static let rest = Color(red: 0.30, green: 0.66, blue: 0.56)
 
     static func color(for phase: Phase) -> Color {
         phase == .focus ? focus : rest
     }
 }
 
-enum Screen {
-    case timer, tasks, settings
+enum TagColor {
+    static let palette: [Color] = [
+        Color(red: 0.36, green: 0.55, blue: 0.93), // azul
+        Color(red: 0.62, green: 0.45, blue: 0.90), // violeta
+        Color(red: 0.95, green: 0.62, blue: 0.25), // naranja
+        Color(red: 0.30, green: 0.70, blue: 0.50), // verde
+        Color(red: 0.90, green: 0.40, blue: 0.62), // rosa
+        Color(red: 0.25, green: 0.68, blue: 0.80), // celeste
+        Color(red: 0.75, green: 0.62, blue: 0.30), // ocre
+    ]
+
+    static func color(_ tag: Tag?) -> Color {
+        guard let tag else { return .secondary }
+        return palette[tag.colorIndex % palette.count]
+    }
+}
+
+enum Screen: Hashable {
+    case timer, tags, settings
 }
 
 struct PopoverView: View {
     @State private var screen: Screen = .timer
 
     var body: some View {
-        Group {
-            switch screen {
-            case .timer: TimerScreen(screen: $screen)
-            case .tasks: TasksScreen(screen: $screen)
-            case .settings: SettingsScreen(screen: $screen)
+        VStack(spacing: 0) {
+            Picker("", selection: $screen) {
+                Text("Timer").tag(Screen.timer)
+                Text("Etiquetas").tag(Screen.tags)
+                Text("Ajustes").tag(Screen.settings)
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(12)
+
+            Divider()
+
+            Group {
+                switch screen {
+                case .timer: TimerScreen(screen: $screen)
+                case .tags: TagsScreen()
+                case .settings: SettingsScreen()
+                }
+            }
+            .frame(maxHeight: .infinity)
         }
-        .frame(width: 280, height: 380)
+        .frame(width: 300, height: 400)
     }
 }
 
-// MARK: - Temporizador
+// MARK: - Timer
 
 struct TimerScreen: View {
     @Environment(FocusTimer.self) private var timer
@@ -38,226 +68,201 @@ struct TimerScreen: View {
     var body: some View {
         let color = Theme.color(for: timer.phase)
         VStack(spacing: 0) {
-            header
-                .frame(height: 48)
-                .padding(.horizontal, 14)
-
-            Divider()
-
-            ZStack(alignment: .topTrailing) {
-                RingView(fraction: timer.remainingFraction, color: color) {
-                    VStack(spacing: 10) {
-                        Text(timer.timeString)
-                            .font(.system(size: 50, weight: .thin))
-                            .monospacedDigit()
-                            .foregroundStyle(color)
-                        Button(action: timer.toggle) {
-                            Image(systemName: timer.state == .running ? "pause" : "play")
-                                .font(.system(size: 30, weight: .ultraLight))
-                                .foregroundStyle(color)
-                                .frame(width: 44, height: 40)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .keyboardShortcut(.space, modifiers: [])
-                        .help(timer.state == .running ? "Pausar" : "Iniciar")
-                    }
-                }
-                .padding(.horizontal, 34)
-                .padding(.vertical, 24)
-
-                if timer.hasProgress {
-                    Button(action: timer.stop) {
-                        Image(systemName: "xmark.circle")
-                            .font(.system(size: 18, weight: .light))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(14)
-                    .help("Detener y reiniciar la fase")
-                }
-            }
-            .frame(maxHeight: .infinity)
-
-            Divider()
-
-            footer
-                .frame(height: 44)
-                .padding(.horizontal, 14)
-        }
-    }
-
-    @ViewBuilder private var header: some View {
-        if timer.phase == .focus {
-            HStack(spacing: 10) {
-                Button {
-                    if let id = timer.selectedTaskID { timer.toggleDone(id) }
-                } label: {
-                    Image(systemName: "checkmark.circle")
-                        .font(.system(size: 20, weight: .light))
-                        .foregroundStyle(timer.selectedTask == nil ? Color.secondary : Theme.rest)
-                }
-                .buttonStyle(.plain)
-                .disabled(timer.selectedTask == nil)
-                .help("Marcar la tarea como terminada")
-
-                Menu {
-                    let pending = timer.tasks.filter { !$0.done }
-                    ForEach(pending) { task in
-                        Button {
-                            timer.selectedTaskID = task.id
-                        } label: {
-                            if task.id == timer.selectedTaskID {
-                                Label(task.title, systemImage: "checkmark")
-                            } else {
-                                Text(task.title)
-                            }
-                        }
-                    }
-                    if !pending.isEmpty { Divider() }
-                    Button("Nueva tarea…") { screen = .tasks }
-                    if timer.selectedTaskID != nil {
-                        Button("Sin tarea") { timer.selectedTaskID = nil }
-                    }
-                } label: {
-                    HStack {
-                        Spacer(minLength: 0)
-                        Text(timer.selectedTask?.title ?? "Elegí una tarea")
-                            .lineLimit(1)
-                            .foregroundStyle(timer.selectedTask == nil ? .secondary : .primary)
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                    .font(.system(size: 15))
-                    .contentShape(Rectangle())
-                }
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-                .menuIndicator(.hidden)
-            }
-        } else {
-            HStack {
-                Image(systemName: "cup.and.saucer")
-                    .foregroundStyle(Theme.rest)
-                Text(timer.phase.title)
-                    .font(.system(size: 15))
-                Spacer()
-                Button("Saltar", action: timer.skip)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var footer: some View {
-        HStack {
-            Button { screen = .tasks } label: {
-                Image(systemName: "list.bullet")
-                    .font(.system(size: 16, weight: .light))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Tareas")
-
-            Spacer()
-
-            (Text("Hoy ").foregroundStyle(.secondary)
-                + Text("\(timer.todayCount)/\(timer.prefs.dailyGoal)").foregroundStyle(Theme.focus))
-                .font(.system(size: 15))
-                .help("Pomodoros completados hoy / meta diaria")
-
-            Spacer()
-
-            Menu {
-                Button("Preferencias…") { screen = .settings }
-                Button("Saltar a la siguiente fase", action: timer.skip)
-                Button("Reiniciar ciclo", action: timer.resetCycle)
-                Divider()
-                Button("Salir de Focus") { NSApplication.shared.terminate(nil) }
-                    .keyboardShortcut("q")
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 16, weight: .light))
-                    .foregroundStyle(.secondary)
-            }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.visible)
-            .fixedSize()
-        }
-    }
-}
-
-struct RingView<Content: View>: View {
-    var fraction: Double
-    var color: Color
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        GeometryReader { geo in
-            let side = min(geo.size.width, geo.size.height)
-            let radius = side / 2 - 8
-            // 0 = las 12; avanza en sentido horario con el tiempo restante.
-            let angle = Angle.degrees(-90 + 360 * fraction).radians
+            Spacer(minLength: 12)
 
             ZStack {
                 Circle()
-                    .stroke(Theme.track, lineWidth: 2)
-                    .frame(width: radius * 2, height: radius * 2)
+                    .stroke(color.opacity(0.15), lineWidth: 10)
                 Circle()
-                    .trim(from: 0, to: fraction)
-                    .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .trim(from: 0, to: timer.remainingFraction)
+                    .stroke(color, style: StrokeStyle(lineWidth: 10, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                    .frame(width: radius * 2, height: radius * 2)
-                Circle()
-                    .fill(Color(nsColor: .windowBackgroundColor))
-                    .overlay(Circle().stroke(color, lineWidth: 2))
-                    .frame(width: 14, height: 14)
-                    .offset(x: radius * cos(angle), y: radius * sin(angle))
-                content
+                    .animation(.linear(duration: 0.5), value: timer.remainingFraction)
+                VStack(spacing: 4) {
+                    Text(timer.phase.title.uppercased())
+                        .font(.system(size: 11, weight: .semibold))
+                        .tracking(1.5)
+                        .foregroundStyle(color)
+                    Text(timer.timeString)
+                        .font(.system(size: 46, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                    if timer.state == .paused {
+                        Text("En pausa")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
-            .frame(width: geo.size.width, height: geo.size.height)
-            .animation(.linear(duration: 0.5), value: fraction)
+            .frame(width: 190, height: 190)
+
+            Spacer(minLength: 12)
+
+            if timer.phase == .focus {
+                TagPicker(screen: $screen)
+            } else {
+                Text("Respirá, estirate, tomá agua.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(height: 26)
+            }
+
+            Spacer(minLength: 12)
+
+            HStack(spacing: 14) {
+                RoundIconButton(systemName: "arrow.counterclockwise", help: "Reiniciar") {
+                    timer.reset()
+                }
+                .opacity(timer.hasProgress ? 1 : 0.35)
+                .disabled(!timer.hasProgress)
+
+                Button(action: timer.toggle) {
+                    Label(primaryTitle, systemImage: timer.state == .running ? "pause.fill" : "play.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 130, height: 38)
+                        .background(Capsule().fill(color))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.space, modifiers: [])
+
+                RoundIconButton(systemName: "forward.end", help: timer.phase == .focus ? "Saltar al descanso" : "Saltar el descanso") {
+                    timer.skip()
+                }
+            }
+
+            Spacer(minLength: 14)
+            Divider()
+
+            HStack(spacing: 4) {
+                Text("Hoy")
+                    .foregroundStyle(.secondary)
+                Text("\(timer.todayPomodoros.count) pomodoros")
+                    .fontWeight(.medium)
+                let minutes = timer.todayPomodoros.reduce(0) { $0 + $1.minutes }
+                if minutes > 0 {
+                    Text("· \(Self.duration(minutes))")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.system(size: 12))
+            .frame(height: 36)
         }
+    }
+
+    private var primaryTitle: String {
+        switch timer.state {
+        case .idle: "Empezar"
+        case .running: "Pausar"
+        case .paused: "Seguir"
+        }
+    }
+
+    static func duration(_ minutes: Int) -> String {
+        minutes < 60 ? "\(minutes) min" : "\(minutes / 60) h \(minutes % 60) min"
     }
 }
 
-// MARK: - Tareas
-
-struct TasksScreen: View {
+struct TagPicker: View {
     @Environment(FocusTimer.self) private var timer
     @Binding var screen: Screen
+
+    var body: some View {
+        Menu {
+            ForEach(timer.tags) { tag in
+                Button {
+                    timer.selectedTagID = tag.id
+                } label: {
+                    if tag.id == timer.selectedTagID {
+                        Label(tag.name, systemImage: "checkmark")
+                    } else {
+                        Text(tag.name)
+                    }
+                }
+            }
+            if !timer.tags.isEmpty {
+                Button("Sin etiqueta") { timer.selectedTagID = nil }
+                Divider()
+            }
+            Button("Administrar etiquetas…") { screen = .tags }
+        } label: {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(TagColor.color(timer.selectedTag))
+                    .frame(width: 8, height: 8)
+                Text(timer.selectedTag?.name ?? "Sin etiqueta")
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .font(.system(size: 13))
+            .padding(.horizontal, 12)
+            .frame(height: 26)
+            .background(Capsule().fill(TagColor.color(timer.selectedTag).opacity(0.14)))
+            .contentShape(Capsule())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("¿A qué pertenece este pomodoro?")
+    }
+}
+
+struct RoundIconButton: View {
+    let systemName: String
+    let help: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(Color.secondary.opacity(0.12)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+}
+
+// MARK: - Etiquetas
+
+struct TagsScreen: View {
+    @Environment(FocusTimer.self) private var timer
     @State private var draft = ""
-    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            SubHeader(title: "Tareas", screen: $screen)
-            Divider()
+            HStack {
+                Text("Etiqueta")
+                Spacer()
+                Text("Hoy").frame(width: 40, alignment: .trailing)
+                Text("Total").frame(width: 44, alignment: .trailing)
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
 
-            if timer.tasks.isEmpty {
-                Spacer()
-                Text("Todavía no hay tareas.\nEscribí una abajo.")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            } else {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(timer.tasks) { task in
-                            TaskRow(task: task)
-                        }
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(timer.tags) { tag in
+                        TagRow(tag: tag)
+                    }
+                    if timer.count(for: nil) > 0 || timer.tags.isEmpty {
+                        TagRow(tag: nil)
                     }
                 }
             }
 
             Divider()
             HStack(spacing: 8) {
-                TextField("Nueva tarea", text: $draft)
+                TextField("Nueva etiqueta (proyecto, tema…)", text: $draft)
                     .textFieldStyle(.plain)
-                    .focused($fieldFocused)
                     .onSubmit(add)
                 Button(action: add) {
                     Image(systemName: "plus.circle.fill")
@@ -270,126 +275,97 @@ struct TasksScreen: View {
             .padding(.horizontal, 14)
             .frame(height: 44)
         }
-        .onAppear { fieldFocused = true }
     }
 
     private func add() {
-        timer.addTask(draft)
+        timer.addTag(draft)
         draft = ""
     }
 }
 
-struct TaskRow: View {
+struct TagRow: View {
     @Environment(FocusTimer.self) private var timer
-    let task: FocusTask
+    let tag: Tag?
     @State private var hovering = false
 
     var body: some View {
-        let selected = task.id == timer.selectedTaskID
-        HStack(spacing: 10) {
-            Button { timer.toggleDone(task.id) } label: {
-                Image(systemName: task.done ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 16, weight: .light))
-                    .foregroundStyle(task.done ? Theme.rest : .secondary)
-            }
-            .buttonStyle(.plain)
-
-            Text(task.title)
+        HStack(spacing: 8) {
+            Circle()
+                .fill(TagColor.color(tag))
+                .frame(width: 8, height: 8)
+            Text(tag?.name ?? "Sin etiqueta")
                 .lineLimit(1)
-                .strikethrough(task.done)
-                .foregroundStyle(task.done ? .secondary : .primary)
-                .fontWeight(selected ? .semibold : .regular)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            if hovering {
-                Button { timer.deleteTask(task.id) } label: {
+                .foregroundStyle(tag == nil ? .secondary : .primary)
+            Spacer()
+            if hovering, let tag {
+                Button { timer.deleteTag(tag.id) } label: {
                     Image(systemName: "trash")
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Borrar")
-            } else if task.pomodoros > 0 {
-                Text("\(task.pomodoros)")
-                    .monospacedDigit()
-                    .foregroundStyle(Theme.focus)
-                    .help("Pomodoros dedicados")
+                .help("Borrar etiqueta (sus pomodoros quedan sin etiqueta)")
             }
+            Text("\(timer.count(for: tag?.id, todayOnly: true))")
+                .frame(width: 40, alignment: .trailing)
+            Text("\(timer.count(for: tag?.id))")
+                .fontWeight(.medium)
+                .frame(width: 44, alignment: .trailing)
         }
+        .monospacedDigit()
+        .font(.system(size: 13))
         .padding(.horizontal, 14)
-        .frame(height: 34)
-        .background(selected ? Theme.focus.opacity(0.12) : Color.clear)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if !task.done { timer.selectedTaskID = task.id }
-        }
+        .frame(height: 32)
+        .background(hovering ? Color.secondary.opacity(0.08) : Color.clear)
         .onHover { hovering = $0 }
     }
 }
 
-// MARK: - Preferencias
+// MARK: - Ajustes
 
 struct SettingsScreen: View {
     @Environment(FocusTimer.self) private var timer
-    @Binding var screen: Screen
 
     var body: some View {
         @Bindable var timer = timer
-        VStack(spacing: 0) {
-            SubHeader(title: "Preferencias", screen: $screen)
+        VStack(alignment: .leading, spacing: 14) {
+            Stepper(value: $timer.prefs.focusMinutes, in: 1...120) {
+                SettingLabel(title: "Pomodoro", value: "\(timer.prefs.focusMinutes) min", color: Theme.focus)
+            }
+            Stepper(value: $timer.prefs.breakMinutes, in: 1...60) {
+                SettingLabel(title: "Descanso", value: "\(timer.prefs.breakMinutes) min", color: Theme.rest)
+            }
             Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    Group {
-                        Stepper("Enfoque: \(timer.prefs.focusMinutes) min",
-                                value: $timer.prefs.focusMinutes, in: 1...120)
-                        Stepper("Descanso corto: \(timer.prefs.shortBreakMinutes) min",
-                                value: $timer.prefs.shortBreakMinutes, in: 1...60)
-                        Stepper("Descanso largo: \(timer.prefs.longBreakMinutes) min",
-                                value: $timer.prefs.longBreakMinutes, in: 1...90)
-                        Stepper("Descanso largo cada \(timer.prefs.longBreakEvery)",
-                                value: $timer.prefs.longBreakEvery, in: 2...12)
-                        Stepper("Meta diaria: \(timer.prefs.dailyGoal)",
-                                value: $timer.prefs.dailyGoal, in: 1...30)
-                    }
-                    Divider()
-                    Toggle("Iniciar descansos solos", isOn: $timer.prefs.autoStartBreaks)
-                    Toggle("Iniciar enfoque solo", isOn: $timer.prefs.autoStartFocus)
-                    Toggle("Sonido al terminar", isOn: $timer.prefs.playSound)
-                    Toggle("Tiempo en la barra de menú", isOn: $timer.prefs.showTimeInMenuBar)
-                    LaunchAtLoginToggle()
-                    if timer.tasks.contains(where: \.done) {
-                        Divider()
-                        Button("Borrar tareas terminadas", action: timer.clearCompletedTasks)
-                    }
-                }
+            Toggle("Sonido al terminar", isOn: $timer.prefs.playSound)
                 .toggleStyle(.checkbox)
-                .padding(14)
+            if timer.hasProgress {
+                Text("Los cambios de duración se aplican al reiniciar o en la próxima fase.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            HStack {
+                Spacer()
+                Button("Salir de Focus") { NSApplication.shared.terminate(nil) }
+                    .keyboardShortcut("q")
             }
         }
+        .padding(16)
     }
 }
 
-struct SubHeader: View {
+struct SettingLabel: View {
     let title: String
-    @Binding var screen: Screen
+    let value: String
+    let color: Color
 
     var body: some View {
-        ZStack {
-            Text(title).font(.system(size: 15, weight: .medium))
-            HStack {
-                Button { screen = .timer } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.cancelAction)
-                Spacer()
-            }
+        HStack(spacing: 8) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text(title)
+            Spacer()
+            Text(value)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
         }
-        .frame(height: 48)
-        .padding(.horizontal, 8)
     }
 }

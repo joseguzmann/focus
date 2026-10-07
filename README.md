@@ -1,15 +1,13 @@
 # Focus
 
-Temporizador Pomodoro para la barra de menú de macOS, al estilo de *Be Focused*.
+Temporizador Pomodoro para la barra de menú de macOS.
 
-- Ícono en la barra superior; mientras corre muestra el tiempo restante (`24:13`) y el aro del ícono se va vaciando.
-- Popover con el anillo de progreso, play/pausa (también con la barra espaciadora) y ✕ para reiniciar la fase.
-- Ciclo de enfoque → descanso corto → … → descanso largo cada N pomodoros.
-- Tareas: elegís en qué estás trabajando y cada pomodoro completo se le suma.
-- «Hoy 3/10»: pomodoros completados hoy contra la meta diaria.
-- Notificación y sonido al terminar cada fase.
-- Preferencias: duraciones, meta diaria, inicio automático, sonido, tiempo en la barra, abrir al iniciar sesión.
-- Sin ícono en el Dock. Todo se guarda en `UserDefaults` local; nada sale de la máquina.
+- Ícono en la barra superior; mientras corre muestra el tiempo restante y el aro del ícono se va vaciando.
+- **Timer**: enfoque → descanso (el descanso arranca solo; el siguiente pomodoro lo iniciás vos). Empezar/pausar también con la barra espaciadora.
+- **Etiquetas**: cada pomodoro pertenece a una etiqueta (proyecto, tema…). Se crean y borran desde la app, y se ve cuántos pomodoros lleva cada una hoy y en total.
+- **Ajustes**: duración del pomodoro y del descanso, sonido al terminar.
+- Notificación al terminar cada fase. Sin ícono en el Dock.
+- Todo se guarda en `UserDefaults` local; nada sale de la máquina.
 
 ## Requisitos
 
@@ -35,6 +33,5 @@ Para desarrollar sin armar el `.app`: `swift run` (ahí no hay notificaciones, p
 | Archivo | Qué tiene |
 | --- | --- |
 | `Sources/Focus/FocusApp.swift` | Punto de entrada, `MenuBarExtra` e ícono de la barra |
-| `Sources/Focus/FocusTimer.swift` | Estado: temporizador, fases, tareas, historial, notificaciones |
-| `Sources/Focus/PopoverView.swift` | Vistas: temporizador, tareas, preferencias |
-| `Sources/Focus/LaunchAtLogin.swift` | Abrir al iniciar sesión (`SMAppService`) |
+| `Sources/Focus/FocusTimer.swift` | Estado: temporizador, etiquetas, pomodoros completados, notificaciones |
+| `Sources/Focus/PopoverView.swift` | Vistas: Timer, Etiquetas, Ajustes |

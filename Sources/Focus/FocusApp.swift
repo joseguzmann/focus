@@ -29,7 +29,7 @@ struct MenuBarLabel: View {
         let fraction = timer.state == .idle ? nil : timer.remainingFraction
         HStack(spacing: 4) {
             Image(nsImage: MenuBarIcon.image(remaining: fraction, paused: timer.state == .paused))
-            if timer.prefs.showTimeInMenuBar && timer.state != .idle {
+            if timer.state != .idle {
                 Text(timer.timeString)
                     .monospacedDigit()
             }

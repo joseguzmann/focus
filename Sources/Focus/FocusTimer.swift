@@ -3,13 +3,12 @@ import Observation
 import UserNotifications
 
 enum Phase: String, Codable {
-    case focus, shortBreak, longBreak
+    case focus, rest
 
     var title: String {
         switch self {
         case .focus: "Enfoque"
-        case .shortBreak: "Descanso corto"
-        case .longBreak: "Descanso largo"
+        case .rest: "Descanso"
         }
     }
 }
@@ -20,24 +19,25 @@ enum RunState {
 
 struct Preferences: Codable, Equatable {
     var focusMinutes = 25
-    var shortBreakMinutes = 5
-    var longBreakMinutes = 15
-    var longBreakEvery = 4
-    var dailyGoal = 10
-    var autoStartBreaks = true
-    var autoStartFocus = false
+    var breakMinutes = 5
     var playSound = true
-    var showTimeInMenuBar = true
 }
 
-struct FocusTask: Identifiable, Codable, Hashable {
+struct Tag: Identifiable, Codable, Hashable {
     var id = UUID()
-    var title: String
-    var done = false
-    var pomodoros = 0
+    var name: String
+    var colorIndex: Int
 }
 
-/// Estado completo de la app: el temporizador, las tareas y el historial diario.
+/// Un pomodoro de enfoque completado.
+struct Pomodoro: Identifiable, Codable {
+    var id = UUID()
+    var finishedAt: Date
+    var minutes: Int
+    var tagID: UUID?
+}
+
+/// Estado de la app: el temporizador, las etiquetas y los pomodoros completados.
 /// Se guarda en UserDefaults; nada sale de la máquina.
 @MainActor
 @Observable
@@ -46,8 +46,6 @@ final class FocusTimer {
     private(set) var state: RunState = .idle
     private(set) var remaining: TimeInterval = 0
     private(set) var total: TimeInterval = 0
-    /// Pomodoros de enfoque terminados en el ciclo actual (define cuándo toca descanso largo).
-    private(set) var cycleCount = 0
 
     var prefs: Preferences {
         didSet {
@@ -56,17 +54,16 @@ final class FocusTimer {
         }
     }
 
-    var tasks: [FocusTask] {
-        didSet { Store.save(tasks, key: Store.tasksKey) }
+    private(set) var tags: [Tag] {
+        didSet { Store.save(tags, key: Store.tagsKey) }
     }
 
-    var selectedTaskID: UUID? {
-        didSet { Store.save(selectedTaskID, key: Store.selectedTaskKey) }
+    var selectedTagID: UUID? {
+        didSet { Store.save(selectedTagID, key: Store.selectedTagKey) }
     }
 
-    /// Pomodoros completados por día, con clave "yyyy-MM-dd".
-    private(set) var history: [String: Int] {
-        didSet { Store.save(history, key: Store.historyKey) }
+    private(set) var pomodoros: [Pomodoro] {
+        didSet { Store.save(pomodoros, key: Store.pomodorosKey) }
     }
 
     @ObservationIgnored private var endDate: Date?
@@ -74,9 +71,9 @@ final class FocusTimer {
 
     init() {
         prefs = Store.load(Preferences.self, key: Store.prefsKey) ?? Preferences()
-        tasks = Store.load([FocusTask].self, key: Store.tasksKey) ?? []
-        selectedTaskID = Store.load(UUID?.self, key: Store.selectedTaskKey) ?? nil
-        history = Store.load([String: Int].self, key: Store.historyKey) ?? [:]
+        tags = Store.load([Tag].self, key: Store.tagsKey) ?? []
+        selectedTagID = Store.load(UUID?.self, key: Store.selectedTagKey) ?? nil
+        pomodoros = Store.load([Pomodoro].self, key: Store.pomodorosKey) ?? []
         resetPhase()
     }
 
@@ -91,15 +88,21 @@ final class FocusTimer {
         return String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 
-    var todayCount: Int { history[Self.dayKey(Date())] ?? 0 }
-
-    var selectedTask: FocusTask? {
-        tasks.first { $0.id == selectedTaskID }
-    }
-
     var hasProgress: Bool { state != .idle || remaining < total }
 
-    // MARK: - Acciones
+    var selectedTag: Tag? {
+        tags.first { $0.id == selectedTagID }
+    }
+
+    var todayPomodoros: [Pomodoro] {
+        pomodoros.filter { Calendar.current.isDateInToday($0.finishedAt) }
+    }
+
+    func count(for tagID: UUID?, todayOnly: Bool = false) -> Int {
+        (todayOnly ? todayPomodoros : pomodoros).filter { $0.tagID == tagID }.count
+    }
+
+    // MARK: - Temporizador
 
     func toggle() {
         state == .running ? pause() : start()
@@ -121,65 +124,44 @@ final class FocusTimer {
     }
 
     /// Vuelve la fase actual al inicio, sin contarla.
-    func stop() {
+    func reset() {
         stopTicker()
         endDate = nil
         state = .idle
         resetPhase()
     }
 
-    /// Pasa a la siguiente fase sin registrar la actual.
+    /// Pasa a la otra fase sin registrar la actual.
     func skip() {
-        stopTicker()
-        endDate = nil
-        state = .idle
-        advance(completedFocus: false)
+        reset()
+        phase = phase == .focus ? .rest : .focus
+        resetPhase()
     }
 
-    func resetCycle() {
-        cycleCount = 0
-        phase = .focus
-        stop()
-    }
+    // MARK: - Etiquetas
 
-    func addTask(_ title: String) {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    func addTag(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let task = FocusTask(title: trimmed)
-        tasks.append(task)
-        if selectedTask == nil || selectedTask?.done == true { selectedTaskID = task.id }
+        let tag = Tag(name: trimmed, colorIndex: tags.count % TagColor.palette.count)
+        tags.append(tag)
+        if selectedTagID == nil { selectedTagID = tag.id }
     }
 
-    func toggleDone(_ id: UUID) {
-        guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
-        tasks[i].done.toggle()
-        if tasks[i].done, selectedTaskID == id {
-            selectedTaskID = tasks.first { !$0.done }?.id
+    /// Los pomodoros de la etiqueta borrada quedan como «Sin etiqueta».
+    func deleteTag(_ id: UUID) {
+        tags.removeAll { $0.id == id }
+        for i in pomodoros.indices where pomodoros[i].tagID == id {
+            pomodoros[i].tagID = nil
         }
-    }
-
-    func deleteTask(_ id: UUID) {
-        tasks.removeAll { $0.id == id }
-        if selectedTaskID == id { selectedTaskID = tasks.first { !$0.done }?.id }
-    }
-
-    func clearCompletedTasks() {
-        tasks.removeAll { $0.done }
+        if selectedTagID == id { selectedTagID = nil }
     }
 
     // MARK: - Internos
 
-    private func duration(of phase: Phase) -> TimeInterval {
-        let minutes = switch phase {
-        case .focus: prefs.focusMinutes
-        case .shortBreak: prefs.shortBreakMinutes
-        case .longBreak: prefs.longBreakMinutes
-        }
-        return TimeInterval(minutes * 60)
-    }
-
     private func resetPhase() {
-        total = duration(of: phase)
+        let minutes = phase == .focus ? prefs.focusMinutes : prefs.breakMinutes
+        total = TimeInterval(minutes * 60)
         remaining = total
     }
 
@@ -205,45 +187,25 @@ final class FocusTimer {
     }
 
     private func finish() {
-        stopTicker()
-        endDate = nil
-        state = .idle
         let finished = phase
-        advance(completedFocus: finished == .focus)
-        Notifier.phaseFinished(finished, next: phase, nextMinutes: Int(total / 60), sound: prefs.playSound)
-
-        let autoStart = phase == .focus ? prefs.autoStartFocus : prefs.autoStartBreaks
-        if autoStart { start() }
-    }
-
-    private func advance(completedFocus: Bool) {
-        if phase == .focus {
-            if completedFocus {
-                history[Self.dayKey(Date()), default: 0] += 1
-                if let i = tasks.firstIndex(where: { $0.id == selectedTaskID }) {
-                    tasks[i].pomodoros += 1
-                }
-            }
-            cycleCount += 1
-            phase = cycleCount % max(1, prefs.longBreakEvery) == 0 ? .longBreak : .shortBreak
-        } else {
-            if phase == .longBreak { cycleCount = 0 }
-            phase = .focus
+        if finished == .focus {
+            pomodoros.append(Pomodoro(finishedAt: Date(), minutes: Int(total / 60), tagID: selectedTagID))
         }
+        reset()
+        phase = finished == .focus ? .rest : .focus
         resetPhase()
-    }
+        Notifier.phaseFinished(finished, nextMinutes: Int(total / 60), sound: prefs.playSound)
 
-    private static func dayKey(_ date: Date) -> String {
-        let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+        // El descanso arranca solo; el siguiente enfoque espera a que lo inicies.
+        if phase == .rest { start() }
     }
 }
 
 enum Store {
-    static let prefsKey = "prefs"
-    static let tasksKey = "tasks"
-    static let selectedTaskKey = "selectedTask"
-    static let historyKey = "history"
+    static let prefsKey = "settings"
+    static let tagsKey = "tags"
+    static let selectedTagKey = "selectedTag"
+    static let pomodorosKey = "pomodoros"
 
     static func load<T: Decodable>(_ type: T.Type, key: String) -> T? {
         guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
@@ -265,17 +227,17 @@ enum Notifier {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    static func phaseFinished(_ finished: Phase, next: Phase, nextMinutes: Int, sound: Bool) {
+    static func phaseFinished(_ finished: Phase, nextMinutes: Int, sound: Bool) {
         if sound { NSSound(named: finished == .focus ? "Glass" : "Hero")?.play() }
         guard available else { return }
 
         let content = UNMutableNotificationContent()
         if finished == .focus {
             content.title = "¡Pomodoro completado!"
-            content.body = "Toca un \(next.title.lowercased()) de \(nextMinutes) min."
+            content.body = "Descanso de \(nextMinutes) min."
         } else {
             content.title = "Se acabó el descanso"
-            content.body = "Hora de volver a enfocarse: \(nextMinutes) min."
+            content.body = "Cuando quieras, otro pomodoro de \(nextMinutes) min."
         }
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
