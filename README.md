@@ -5,7 +5,7 @@ A Pomodoro timer for the macOS menu bar.
 - Menu bar icon; while running it shows the remaining time and the icon's ring empties.
 - **Timer**: focus → break (the break starts on its own; you start the next pomodoro). Space bar starts/pauses.
 - **Tags**: every pomodoro belongs to a tag (project, topic…). Create and delete tags in the app and see how many pomodoros each one has today and in total.
-- **Background noise**: white, pink or brown noise while a pomodoro runs. Pick the type; hover the speaker to unfold mute and volume (muting never stops the pomodoro). It stops when the pomodoro ends. Generated in real time in stereo (independent noise per ear), no audio files or loops.
+- **Background noise**: white, pink or brown noise while a pomodoro runs. Pick the type; click the speaker to mute/unmute (the pomodoro keeps running) and hover it for the volume. It stops when the pomodoro ends. Generated in real time in stereo (independent noise per ear), no audio files or loops.
 - **Settings**: pomodoro and break length, sound when done.
 - Notification when each phase ends. No Dock icon.
 - Everything is stored locally in `UserDefaults`; nothing leaves the machine.

@@ -314,14 +314,18 @@ struct NoiseControl: View {
                 .frame(height: 14)
                 .padding(.horizontal, 8)
 
-            // Only shows the state; hovering it unfolds mute and volume below.
-            Image(systemName: speakerSymbol)
-                .foregroundStyle(on ? Theme.focus : .secondary)
-                .frame(width: 26, height: 26)
-                .contentShape(Rectangle())
-                .onHover { inside in
-                    if inside { withAnimation(.easeInOut(duration: 0.15)) { showVolume = true } }
-                }
+            // Clicking mutes/unmutes (the pomodoro keeps running); hovering unfolds the volume below.
+            Button { timer.prefs.noiseEnabled.toggle() } label: {
+                Image(systemName: speakerSymbol)
+                    .foregroundStyle(on ? Theme.focus : .secondary)
+                    .frame(width: 26, height: 26)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(on ? "Mute noise (the pomodoro keeps running)" : "Unmute noise")
+            .onHover { inside in
+                if inside { withAnimation(.easeInOut(duration: 0.15)) { showVolume = true } }
+            }
         }
         .padding(.leading, 12)
         .padding(.trailing, 6)
