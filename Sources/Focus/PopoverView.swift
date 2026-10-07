@@ -102,6 +102,8 @@ struct TimerScreen: View {
                     TagPicker(screen: $screen)
                     NoiseControl()
                 }
+                // Keeps the volume panel above the buttons below it.
+                .zIndex(1)
             } else {
                 Text("Breathe, stretch, drink some water.")
                     .font(.system(size: 12))
@@ -219,6 +221,8 @@ struct TagPicker: View {
 
 struct NoiseControl: View {
     @Environment(FocusTimer.self) private var timer
+    @State private var hoverSpeaker = false
+    @State private var hoverPanel = false
     @State private var showVolume = false
 
     var body: some View {
@@ -261,34 +265,60 @@ struct NoiseControl: View {
                 .frame(height: 14)
                 .padding(.horizontal, 8)
 
-            // Hovering the speaker reveals the volume; clicking it turns the noise on/off
-            // without touching the pomodoro.
-            HStack(spacing: 6) {
-                if showVolume {
-                    Slider(value: $timer.prefs.noiseVolume, in: 0.05...1)
-                        .controlSize(.mini)
-                        .tint(Theme.focus)
-                        .frame(width: 80)
-                        .opacity(on ? 1 : 0.5)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
-                Button { timer.prefs.noiseEnabled.toggle() } label: {
-                    Image(systemName: speakerSymbol)
-                        .foregroundStyle(on ? Theme.focus : .secondary)
-                        .frame(width: 26, height: 26)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(on ? "Turn noise off (the pomodoro keeps running)" : "Play noise while the pomodoro runs")
+            // Clicking the speaker turns the noise on/off without touching the pomodoro;
+            // hovering it drops down the volume panel.
+            Button { timer.prefs.noiseEnabled.toggle() } label: {
+                Image(systemName: speakerSymbol)
+                    .foregroundStyle(on ? Theme.focus : .secondary)
+                    .frame(width: 26, height: 26)
+                    .contentShape(Rectangle())
             }
-            .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.15)) { showVolume = hovering }
+            .buttonStyle(.plain)
+            .onHover { hoverSpeaker = $0; updateVolumePanel() }
+            .overlay(alignment: .topTrailing) {
+                if showVolume {
+                    HStack(spacing: 8) {
+                        Image(systemName: "speaker.fill")
+                        Slider(value: $timer.prefs.noiseVolume, in: 0.05...1)
+                            .controlSize(.mini)
+                            .tint(Theme.focus)
+                        Image(systemName: "speaker.wave.3.fill")
+                    }
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .opacity(on ? 1 : 0.5)
+                    .padding(.horizontal, 12)
+                    .frame(width: 170, height: 32)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(.regularMaterial)
+                            .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+                    )
+                    // Right below the capsule, aligned with its right edge.
+                    .offset(x: 6, y: 32)
+                    .onHover { hoverPanel = $0; updateVolumePanel() }
+                    .transition(.opacity.combined(with: .offset(y: -4)))
+                }
             }
         }
         .font(.system(size: 13))
         .padding(.leading, 12)
         .padding(.trailing, 6)
         .background(Capsule().fill(on ? Theme.focus.opacity(0.12) : Color.secondary.opacity(0.1)))
+    }
+
+    /// Opens right away; closes after a short delay so the pointer can travel
+    /// from the speaker to the panel without it disappearing.
+    private func updateVolumePanel() {
+        if hoverSpeaker || hoverPanel {
+            withAnimation(.easeOut(duration: 0.12)) { showVolume = true }
+        } else {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !hoverSpeaker, !hoverPanel else { return }
+                withAnimation(.easeIn(duration: 0.12)) { showVolume = false }
+            }
+        }
     }
 
     private var speakerSymbol: String {
