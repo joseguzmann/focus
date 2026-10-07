@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compila y arma build/Focus.app. Con --install la copia a /Applications y la abre.
+# Builds build/Focus.app. With --install it copies it to /Applications and opens it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/toolchain.sh
@@ -14,12 +14,12 @@ cp "$bin/Focus" "$app/Contents/MacOS/Focus"
 cp Resources/Info.plist "$app/Contents/Info.plist"
 cp Resources/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$app" >/dev/null
-echo "App lista: $app"
+echo "App ready: $app"
 
 if [[ "${1:-}" == "--install" ]]; then
   pkill -x Focus 2>/dev/null || true
   rm -rf /Applications/Focus.app
   cp -R "$app" /Applications/Focus.app
   open /Applications/Focus.app
-  echo "Instalada en /Applications/Focus.app"
+  echo "Installed at /Applications/Focus.app"
 fi

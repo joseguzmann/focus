@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenera Resources/AppIcon.icns a partir de scripts/make-icon.swift.
+# Regenerates Resources/AppIcon.icns from scripts/make-icon.swift.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/toolchain.sh
@@ -15,4 +15,4 @@ done
 iconutil -c icns "$set_dir" -o Resources/AppIcon.icns
 cp "$tmp/icon.png" Resources/AppIcon.png
 rm -rf "$tmp"
-echo "Ícono listo: Resources/AppIcon.icns"
+echo "Icon ready: Resources/AppIcon.icns"

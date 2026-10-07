@@ -7,8 +7,8 @@ enum Phase: String, Codable {
 
     var title: String {
         switch self {
-        case .focus: "Enfoque"
-        case .rest: "Descanso"
+        case .focus: "Focus"
+        case .rest: "Break"
         }
     }
 }
@@ -29,7 +29,7 @@ struct Tag: Identifiable, Codable, Hashable {
     var colorIndex: Int
 }
 
-/// Un pomodoro de enfoque completado.
+/// A completed focus pomodoro.
 struct Pomodoro: Identifiable, Codable {
     var id = UUID()
     var finishedAt: Date
@@ -37,8 +37,8 @@ struct Pomodoro: Identifiable, Codable {
     var tagID: UUID?
 }
 
-/// Estado de la app: el temporizador, las etiquetas y los pomodoros completados.
-/// Se guarda en UserDefaults; nada sale de la máquina.
+/// App state: the timer, the tags and the completed pomodoros.
+/// Stored in UserDefaults; nothing leaves the machine.
 @MainActor
 @Observable
 final class FocusTimer {
@@ -77,7 +77,7 @@ final class FocusTimer {
         resetPhase()
     }
 
-    // MARK: - Lectura
+    // MARK: - Reading
 
     var remainingFraction: Double {
         total > 0 ? max(0, min(1, remaining / total)) : 1
@@ -102,7 +102,7 @@ final class FocusTimer {
         (todayOnly ? todayPomodoros : pomodoros).filter { $0.tagID == tagID }.count
     }
 
-    // MARK: - Temporizador
+    // MARK: - Timer
 
     func toggle() {
         state == .running ? pause() : start()
@@ -123,7 +123,7 @@ final class FocusTimer {
         state = .paused
     }
 
-    /// Vuelve la fase actual al inicio, sin contarla.
+    /// Restarts the current phase without counting it.
     func reset() {
         stopTicker()
         endDate = nil
@@ -131,14 +131,14 @@ final class FocusTimer {
         resetPhase()
     }
 
-    /// Pasa a la otra fase sin registrar la actual.
+    /// Moves to the other phase without recording the current one.
     func skip() {
         reset()
         phase = phase == .focus ? .rest : .focus
         resetPhase()
     }
 
-    // MARK: - Etiquetas
+    // MARK: - Tags
 
     func addTag(_ name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -148,7 +148,7 @@ final class FocusTimer {
         if selectedTagID == nil { selectedTagID = tag.id }
     }
 
-    /// Los pomodoros de la etiqueta borrada quedan como «Sin etiqueta».
+    /// Pomodoros of the deleted tag become untagged.
     func deleteTag(_ id: UUID) {
         tags.removeAll { $0.id == id }
         for i in pomodoros.indices where pomodoros[i].tagID == id {
@@ -157,7 +157,7 @@ final class FocusTimer {
         if selectedTagID == id { selectedTagID = nil }
     }
 
-    // MARK: - Internos
+    // MARK: - Internals
 
     private func resetPhase() {
         let minutes = phase == .focus ? prefs.focusMinutes : prefs.breakMinutes
@@ -170,7 +170,7 @@ final class FocusTimer {
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
-        // .common para que siga corriendo mientras el popover o un menú están abiertos.
+        // .common so it keeps ticking while the popover or a menu is open.
         RunLoop.main.add(timer, forMode: .common)
         ticker = timer
     }
@@ -196,7 +196,7 @@ final class FocusTimer {
         resetPhase()
         Notifier.phaseFinished(finished, nextMinutes: Int(total / 60), sound: prefs.playSound)
 
-        // El descanso arranca solo; el siguiente enfoque espera a que lo inicies.
+        // Breaks start on their own; the next focus waits for you to start it.
         if phase == .rest { start() }
     }
 }
@@ -219,7 +219,7 @@ enum Store {
 }
 
 enum Notifier {
-    /// Las notificaciones sólo funcionan dentro del .app (con bundle id), no con `swift run`.
+    /// Notifications only work inside the .app (it needs a bundle id), not with `swift run`.
     private static var available: Bool { Bundle.main.bundleIdentifier != nil }
 
     static func requestAuthorization() {
@@ -233,11 +233,11 @@ enum Notifier {
 
         let content = UNMutableNotificationContent()
         if finished == .focus {
-            content.title = "¡Pomodoro completado!"
-            content.body = "Descanso de \(nextMinutes) min."
+            content.title = "Pomodoro complete!"
+            content.body = "Time for a \(nextMinutes)-minute break."
         } else {
-            content.title = "Se acabó el descanso"
-            content.body = "Cuando quieras, otro pomodoro de \(nextMinutes) min."
+            content.title = "Break is over"
+            content.body = "Ready for another \(nextMinutes)-minute pomodoro?"
         }
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)

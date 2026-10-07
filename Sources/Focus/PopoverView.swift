@@ -11,13 +11,13 @@ enum Theme {
 
 enum TagColor {
     static let palette: [Color] = [
-        Color(red: 0.36, green: 0.55, blue: 0.93), // azul
-        Color(red: 0.62, green: 0.45, blue: 0.90), // violeta
-        Color(red: 0.95, green: 0.62, blue: 0.25), // naranja
-        Color(red: 0.30, green: 0.70, blue: 0.50), // verde
-        Color(red: 0.90, green: 0.40, blue: 0.62), // rosa
-        Color(red: 0.25, green: 0.68, blue: 0.80), // celeste
-        Color(red: 0.75, green: 0.62, blue: 0.30), // ocre
+        Color(red: 0.36, green: 0.55, blue: 0.93), // blue
+        Color(red: 0.62, green: 0.45, blue: 0.90), // violet
+        Color(red: 0.95, green: 0.62, blue: 0.25), // orange
+        Color(red: 0.30, green: 0.70, blue: 0.50), // green
+        Color(red: 0.90, green: 0.40, blue: 0.62), // pink
+        Color(red: 0.25, green: 0.68, blue: 0.80), // sky
+        Color(red: 0.75, green: 0.62, blue: 0.30), // ochre
     ]
 
     static func color(_ tag: Tag?) -> Color {
@@ -37,8 +37,8 @@ struct PopoverView: View {
         VStack(spacing: 0) {
             Picker("", selection: $screen) {
                 Text("Timer").tag(Screen.timer)
-                Text("Etiquetas").tag(Screen.tags)
-                Text("Ajustes").tag(Screen.settings)
+                Text("Tags").tag(Screen.tags)
+                Text("Settings").tag(Screen.settings)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -87,7 +87,7 @@ struct TimerScreen: View {
                         .font(.system(size: 46, weight: .medium, design: .rounded))
                         .monospacedDigit()
                     if timer.state == .paused {
-                        Text("En pausa")
+                        Text("Paused")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
@@ -100,7 +100,7 @@ struct TimerScreen: View {
             if timer.phase == .focus {
                 TagPicker(screen: $screen)
             } else {
-                Text("Respirá, estirate, tomá agua.")
+                Text("Breathe, stretch, drink some water.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .frame(height: 26)
@@ -109,7 +109,7 @@ struct TimerScreen: View {
             Spacer(minLength: 12)
 
             HStack(spacing: 14) {
-                RoundIconButton(systemName: "arrow.counterclockwise", help: "Reiniciar") {
+                RoundIconButton(systemName: "arrow.counterclockwise", help: "Restart") {
                     timer.reset()
                 }
                 .opacity(timer.hasProgress ? 1 : 0.35)
@@ -126,7 +126,7 @@ struct TimerScreen: View {
                 .buttonStyle(.plain)
                 .keyboardShortcut(.space, modifiers: [])
 
-                RoundIconButton(systemName: "forward.end", help: timer.phase == .focus ? "Saltar al descanso" : "Saltar el descanso") {
+                RoundIconButton(systemName: "forward.end", help: timer.phase == .focus ? "Skip to break" : "Skip break") {
                     timer.skip()
                 }
             }
@@ -135,9 +135,9 @@ struct TimerScreen: View {
             Divider()
 
             HStack(spacing: 4) {
-                Text("Hoy")
+                Text("Today")
                     .foregroundStyle(.secondary)
-                Text("\(timer.todayPomodoros.count) pomodoros")
+                Text(Self.pomodoros(timer.todayPomodoros.count))
                     .fontWeight(.medium)
                 let minutes = timer.todayPomodoros.reduce(0) { $0 + $1.minutes }
                 if minutes > 0 {
@@ -152,10 +152,14 @@ struct TimerScreen: View {
 
     private var primaryTitle: String {
         switch timer.state {
-        case .idle: "Empezar"
-        case .running: "Pausar"
-        case .paused: "Seguir"
+        case .idle: "Start"
+        case .running: "Pause"
+        case .paused: "Resume"
         }
+    }
+
+    static func pomodoros(_ count: Int) -> String {
+        count == 1 ? "1 pomodoro" : "\(count) pomodoros"
     }
 
     static func duration(_ minutes: Int) -> String {
@@ -181,16 +185,16 @@ struct TagPicker: View {
                 }
             }
             if !timer.tags.isEmpty {
-                Button("Sin etiqueta") { timer.selectedTagID = nil }
+                Button("No tag") { timer.selectedTagID = nil }
                 Divider()
             }
-            Button("Administrar etiquetas…") { screen = .tags }
+            Button("Manage tags…") { screen = .tags }
         } label: {
             HStack(spacing: 6) {
                 Circle()
                     .fill(TagColor.color(timer.selectedTag))
                     .frame(width: 8, height: 8)
-                Text(timer.selectedTag?.name ?? "Sin etiqueta")
+                Text(timer.selectedTag?.name ?? "No tag")
                     .lineLimit(1)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .semibold))
@@ -206,7 +210,7 @@ struct TagPicker: View {
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("¿A qué pertenece este pomodoro?")
+        .help("What is this pomodoro for?")
     }
 }
 
@@ -229,7 +233,7 @@ struct RoundIconButton: View {
     }
 }
 
-// MARK: - Etiquetas
+// MARK: - Tags
 
 struct TagsScreen: View {
     @Environment(FocusTimer.self) private var timer
@@ -238,9 +242,9 @@ struct TagsScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Etiqueta")
+                Text("Tag")
                 Spacer()
-                Text("Hoy").frame(width: 40, alignment: .trailing)
+                Text("Today").frame(width: 40, alignment: .trailing)
                 Text("Total").frame(width: 44, alignment: .trailing)
             }
             .font(.system(size: 11, weight: .medium))
@@ -261,7 +265,7 @@ struct TagsScreen: View {
 
             Divider()
             HStack(spacing: 8) {
-                TextField("Nueva etiqueta (proyecto, tema…)", text: $draft)
+                TextField("New tag (project, topic…)", text: $draft)
                     .textFieldStyle(.plain)
                     .onSubmit(add)
                 Button(action: add) {
@@ -293,7 +297,7 @@ struct TagRow: View {
             Circle()
                 .fill(TagColor.color(tag))
                 .frame(width: 8, height: 8)
-            Text(tag?.name ?? "Sin etiqueta")
+            Text(tag?.name ?? "No tag")
                 .lineLimit(1)
                 .foregroundStyle(tag == nil ? .secondary : .primary)
             Spacer()
@@ -303,7 +307,7 @@ struct TagRow: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Borrar etiqueta (sus pomodoros quedan sin etiqueta)")
+                .help("Delete tag (its pomodoros become untagged)")
             }
             Text("\(timer.count(for: tag?.id, todayOnly: true))")
                 .frame(width: 40, alignment: .trailing)
@@ -320,7 +324,7 @@ struct TagRow: View {
     }
 }
 
-// MARK: - Ajustes
+// MARK: - Settings
 
 struct SettingsScreen: View {
     @Environment(FocusTimer.self) private var timer
@@ -332,20 +336,20 @@ struct SettingsScreen: View {
                 SettingLabel(title: "Pomodoro", value: "\(timer.prefs.focusMinutes) min", color: Theme.focus)
             }
             Stepper(value: $timer.prefs.breakMinutes, in: 1...60) {
-                SettingLabel(title: "Descanso", value: "\(timer.prefs.breakMinutes) min", color: Theme.rest)
+                SettingLabel(title: "Break", value: "\(timer.prefs.breakMinutes) min", color: Theme.rest)
             }
             Divider()
-            Toggle("Sonido al terminar", isOn: $timer.prefs.playSound)
+            Toggle("Play sound when done", isOn: $timer.prefs.playSound)
                 .toggleStyle(.checkbox)
             if timer.hasProgress {
-                Text("Los cambios de duración se aplican al reiniciar o en la próxima fase.")
+                Text("Duration changes apply on restart or in the next phase.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
             Spacer()
             HStack {
                 Spacer()
-                Button("Salir de Focus") { NSApplication.shared.terminate(nil) }
+                Button("Quit Focus") { NSApplication.shared.terminate(nil) }
                     .keyboardShortcut("q")
             }
         }

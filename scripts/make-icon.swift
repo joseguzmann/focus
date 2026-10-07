@@ -1,5 +1,5 @@
-// Dibuja el ícono de la app (1024×1024) en el PNG que se pase como argumento.
-// Uso: swift scripts/make-icon.swift salida.png
+// Draws the app icon (1024×1024) into the PNG passed as argument.
+// Usage: swift scripts/make-icon.swift output.png
 import AppKit
 
 let out = CommandLine.arguments.dropFirst().first ?? "icon.png"
@@ -10,7 +10,7 @@ let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(side), pixelsH
 NSGraphicsContext.saveGraphicsState()
 NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
 
-// Plantilla de íconos de macOS: cuadrado redondeado de 824 con margen de 100.
+// macOS icon grid: 824 rounded square with a 100 margin.
 let tile = NSRect(x: 100, y: 100, width: 824, height: 824)
 let tilePath = NSBezierPath(roundedRect: tile, xRadius: 185, yRadius: 185)
 NSGradient(colors: [
@@ -20,7 +20,7 @@ NSGradient(colors: [
 
 let center = NSPoint(x: tile.midX, y: tile.midY)
 
-// Disco interior un poco más claro.
+// Slightly lighter inner disc.
 NSColor.white.withAlphaComponent(0.14).setFill()
 NSBezierPath(ovalIn: NSRect(x: center.x - 255, y: center.y - 255, width: 510, height: 510)).fill()
 
