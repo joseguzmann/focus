@@ -72,11 +72,6 @@ final class FocusTimer {
         }
     }
 
-    /// Silences the noise for the current pomodoro only; it resets when the pomodoro ends.
-    var noiseMuted = false {
-        didSet { updateNoise() }
-    }
-
     private(set) var tags: [Tag] {
         didSet { Store.save(tags, key: Store.tagsKey) }
     }
@@ -115,7 +110,7 @@ final class FocusTimer {
     var hasProgress: Bool { state != .idle || remaining < total }
 
     var isNoisePlaying: Bool {
-        prefs.noiseEnabled && !noiseMuted && phase == .focus && state == .running
+        prefs.noiseEnabled && phase == .focus && state == .running
     }
 
     var selectedTag: Tag? {
@@ -158,7 +153,6 @@ final class FocusTimer {
         stopTicker()
         endDate = nil
         state = .idle
-        noiseMuted = false
         resetPhase()
         updateNoise()
     }

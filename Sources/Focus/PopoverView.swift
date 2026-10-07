@@ -219,19 +219,12 @@ struct TagPicker: View {
 
 struct NoiseControl: View {
     @Environment(FocusTimer.self) private var timer
+    @State private var showVolume = false
 
     var body: some View {
+        @Bindable var timer = timer
         let on = timer.prefs.noiseEnabled
         HStack(spacing: 0) {
-            @Bindable var timer = timer
-            Toggle("Background noise", isOn: $timer.prefs.noiseEnabled)
-                .toggleStyle(.switch)
-                .controlSize(.mini)
-                .labelsHidden()
-                .tint(Theme.focus)
-                .padding(.trailing, 8)
-                .help(on ? "Turn background noise off" : "Turn background noise on")
-
             Menu {
                 ForEach(NoiseType.allCases) { type in
                     Button {
@@ -264,24 +257,44 @@ struct NoiseControl: View {
             .fixedSize()
             .help("Noise type")
 
-            if on {
-                Divider()
-                    .frame(height: 14)
-                    .padding(.leading, 8)
-                Button { timer.noiseMuted.toggle() } label: {
-                    Image(systemName: timer.noiseMuted ? "speaker.slash" : "speaker.wave.2")
-                        .foregroundStyle(timer.noiseMuted ? Theme.focus : .secondary)
-                        .frame(width: 30, height: 26)
+            Divider()
+                .frame(height: 14)
+                .padding(.horizontal, 8)
+
+            // Hovering the speaker reveals the volume; clicking it turns the noise on/off
+            // without touching the pomodoro.
+            HStack(spacing: 6) {
+                if showVolume {
+                    Slider(value: $timer.prefs.noiseVolume, in: 0.05...1)
+                        .controlSize(.mini)
+                        .tint(Theme.focus)
+                        .frame(width: 80)
+                        .opacity(on ? 1 : 0.5)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+                Button { timer.prefs.noiseEnabled.toggle() } label: {
+                    Image(systemName: speakerSymbol)
+                        .foregroundStyle(on ? Theme.focus : .secondary)
+                        .frame(width: 26, height: 26)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(timer.noiseMuted ? "Unmute" : "Mute (the pomodoro keeps running)")
+                .help(on ? "Turn noise off (the pomodoro keeps running)" : "Play noise while the pomodoro runs")
+            }
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.15)) { showVolume = hovering }
             }
         }
         .font(.system(size: 13))
-        .padding(.leading, 10)
-        .padding(.trailing, on ? 4 : 12)
+        .padding(.leading, 12)
+        .padding(.trailing, 6)
         .background(Capsule().fill(on ? Theme.focus.opacity(0.12) : Color.secondary.opacity(0.1)))
+    }
+
+    private var speakerSymbol: String {
+        guard timer.prefs.noiseEnabled else { return "speaker.slash" }
+        let volume = timer.prefs.noiseVolume
+        return volume < 0.34 ? "speaker.wave.1" : volume < 0.67 ? "speaker.wave.2" : "speaker.wave.3"
     }
 }
 
@@ -412,16 +425,6 @@ struct SettingsScreen: View {
             Divider()
             Toggle("Play sound when done", isOn: $timer.prefs.playSound)
                 .toggleStyle(.checkbox)
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Noise volume")
-                HStack(spacing: 8) {
-                    Image(systemName: "speaker.fill")
-                    Slider(value: $timer.prefs.noiseVolume, in: 0.05...1)
-                    Image(systemName: "speaker.wave.3.fill")
-                }
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-            }
             if timer.hasProgress {
                 Text("Duration changes apply on restart or in the next phase.")
                     .font(.system(size: 11))
