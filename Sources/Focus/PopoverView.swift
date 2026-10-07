@@ -219,18 +219,30 @@ struct TagPicker: View {
 
 struct NoiseControl: View {
     @Environment(FocusTimer.self) private var timer
+    @State private var hovering = false
+    @State private var showVolume = false
 
     var body: some View {
         @Bindable var timer = timer
         let on = timer.prefs.noiseEnabled
         VStack(spacing: 0) {
             header
-            // Color.clear takes the header's width, so the slider never widens the control.
-            Color.clear
+            if showVolume {
+                // Color.clear takes the header's width, so the slider never widens the control.
+                Color.clear
                     .frame(height: 30)
                     .overlay {
                         HStack(spacing: 8) {
-                            Image(systemName: "speaker.fill")
+                            // Mute / unmute lives here; the pomodoro keeps running either way.
+                            Button { timer.prefs.noiseEnabled.toggle() } label: {
+                                Image(systemName: on ? "speaker.fill" : "speaker.slash.fill")
+                                    .foregroundStyle(on ? Theme.focus : .secondary)
+                                    .frame(width: 22, height: 22)
+                                    .background(Circle().fill(Color.secondary.opacity(0.12)))
+                                    .contentShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .help(on ? "Mute noise (the pomodoro keeps running)" : "Unmute noise")
                             Slider(value: $timer.prefs.noiseVolume, in: 0.05...1)
                                 .controlSize(.mini)
                                 .tint(Theme.focus)
@@ -238,10 +250,12 @@ struct NoiseControl: View {
                         }
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                        .opacity(on ? 1 : 0.5)
-                        .padding(.horizontal, 14)
+                        .padding(.leading, 10)
+                        .padding(.trailing, 14)
                         .padding(.bottom, 4)
                     }
+                    .transition(.opacity)
+            }
         }
         .font(.system(size: 13))
         .fixedSize()
@@ -249,6 +263,16 @@ struct NoiseControl: View {
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .fill(on ? Theme.focus.opacity(0.12) : Color.secondary.opacity(0.1))
         )
+        // Opened by hovering the speaker; stays open while the pointer is anywhere on the control.
+        .onHover { inside in
+            hovering = inside
+            guard !inside else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !hovering else { return }
+                withAnimation(.easeInOut(duration: 0.15)) { showVolume = false }
+            }
+        }
     }
 
     private var header: some View {
@@ -290,15 +314,14 @@ struct NoiseControl: View {
                 .frame(height: 14)
                 .padding(.horizontal, 8)
 
-            // Clicking the speaker turns the noise on/off without touching the pomodoro.
-            Button { timer.prefs.noiseEnabled.toggle() } label: {
-                Image(systemName: speakerSymbol)
-                    .foregroundStyle(on ? Theme.focus : .secondary)
-                    .frame(width: 26, height: 26)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help(on ? "Turn noise off (the pomodoro keeps running)" : "Play noise while the pomodoro runs")
+            // Only shows the state; hovering it unfolds mute and volume below.
+            Image(systemName: speakerSymbol)
+                .foregroundStyle(on ? Theme.focus : .secondary)
+                .frame(width: 26, height: 26)
+                .contentShape(Rectangle())
+                .onHover { inside in
+                    if inside { withAnimation(.easeInOut(duration: 0.15)) { showVolume = true } }
+                }
         }
         .padding(.leading, 12)
         .padding(.trailing, 6)
