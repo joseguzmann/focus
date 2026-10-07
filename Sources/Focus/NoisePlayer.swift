@@ -15,24 +15,24 @@ enum NoiseType: String, Codable, CaseIterable, Identifiable {
 }
 
 /// Generates background noise in real time (no audio files, no loops).
+/// Each ear gets its own independent noise, which sounds wide instead of "inside the head".
 /// Fades in and out to avoid clicks, and stops the engine when silent.
 final class NoisePlayer {
     private let engine = AVAudioEngine()
-    private let generator = NoiseGenerator()
+    private let generator: NoiseGenerator
     private var stopWork: DispatchWorkItem?
 
     init() {
-        let sampleRate = engine.outputNode.outputFormat(forBus: 0).sampleRate
-        let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate > 0 ? sampleRate : 48_000, channels: 1)!
-        let generator = generator
+        let outputRate = engine.outputNode.outputFormat(forBus: 0).sampleRate
+        let sampleRate = outputRate > 0 ? outputRate : 48_000
+        let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
+        let generator = NoiseGenerator(sampleRate: Float(sampleRate))
+        self.generator = generator
         let source = AVAudioSourceNode(format: format) { _, _, frameCount, bufferList -> OSStatus in
             let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
-            for frame in 0..<Int(frameCount) {
-                let sample = generator.next()
-                for buffer in buffers {
-                    buffer.mData?.assumingMemoryBound(to: Float.self)[frame] = sample
-                }
-            }
+            guard let left = buffers[0].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
+            let right = buffers.count > 1 ? buffers[1].mData?.assumingMemoryBound(to: Float.self) : nil
+            generator.render(left: left, right: right ?? left, frames: Int(frameCount))
             return noErr
         }
         engine.attach(source)
@@ -60,44 +60,85 @@ final class NoisePlayer {
 }
 
 /// State shared with the audio render thread. Races on these scalars are harmless
-/// (worst case a sample uses the previous value).
-private final class NoiseGenerator: @unchecked Sendable {
+/// (worst case a buffer uses the previous value).
+final class NoiseGenerator: @unchecked Sendable {
     var type: NoiseType = .brown
     var targetGain: Float = 0
     private var gain: Float = 0
-    private var seed: UInt32 = 0x9E37_79B9
-    private var brown: Float = 0
-    private var pink = [Float](repeating: 0, count: 7)
+    private var left = NoiseChannel(seed: 0x9E37_79B9)
+    private var right = NoiseChannel(seed: 0x85EB_CA6B)
+    private let softTop: Float
+    private let brownTop: Float
+    private let fade: Float
 
-    func next() -> Float {
-        // ~0.1 s fade at 48 kHz.
-        gain += (targetGain - gain) * 0.0002
+    init(sampleRate: Float) {
+        // One-pole low-pass coefficients: a soft roll-off of the hiss above ~8 kHz,
+        // and a darker one for brown noise.
+        softTop = 1 - exp(-2 * .pi * 8_000 / sampleRate)
+        brownTop = 1 - exp(-2 * .pi * 600 / sampleRate)
+        fade = 1 - exp(-1 / (0.15 * sampleRate))
+    }
+
+    func render(left out0: UnsafeMutablePointer<Float>, right out1: UnsafeMutablePointer<Float>, frames: Int) {
+        let type = type
+        let target = targetGain
+        let top = type == .brown ? brownTop : softTop
+        for i in 0..<frames {
+            gain += (target - gain) * fade
+            let l = left.next(type, top: top)
+            let r = right.next(type, top: top)
+            out0[i] = l * gain
+            if out1 != out0 { out1[i] = r * gain }
+        }
+    }
+
+    /// Unfaded samples, for measuring levels.
+    func sample(_ type: NoiseType) -> (Float, Float) {
+        let top = type == .brown ? brownTop : softTop
+        return (left.next(type, top: top), right.next(type, top: top))
+    }
+}
+
+struct NoiseChannel {
+    private var seed: UInt32
+    private var b0: Float = 0, b1: Float = 0, b2: Float = 0, b3: Float = 0
+    private var b4: Float = 0, b5: Float = 0, b6: Float = 0
+    private var brown: Float = 0
+    private var smooth: Float = 0
+
+    init(seed: UInt32) { self.seed = seed }
+
+    mutating func next(_ type: NoiseType, top: Float) -> Float {
         let white = random()
-        let sample: Float
+        let raw: Float
+        let level: Float
         switch type {
         case .white:
-            sample = white * 0.25
+            raw = white
+            level = 0.30
         case .pink:
             // Paul Kellet's pink noise filter.
-            pink[0] = 0.99886 * pink[0] + white * 0.0555179
-            pink[1] = 0.99332 * pink[1] + white * 0.0750759
-            pink[2] = 0.96900 * pink[2] + white * 0.1538520
-            pink[3] = 0.86650 * pink[3] + white * 0.3104856
-            pink[4] = 0.55000 * pink[4] + white * 0.5329522
-            pink[5] = -0.7616 * pink[5] - white * 0.0168980
-            let value = pink[0] + pink[1] + pink[2] + pink[3] + pink[4] + pink[5] + pink[6] + white * 0.5362
-            pink[6] = white * 0.115926
-            sample = value * 0.09
+            b0 = 0.99886 * b0 + white * 0.0555179
+            b1 = 0.99332 * b1 + white * 0.0750759
+            b2 = 0.96900 * b2 + white * 0.1538520
+            b3 = 0.86650 * b3 + white * 0.3104856
+            b4 = 0.55000 * b4 + white * 0.5329522
+            b5 = -0.7616 * b5 - white * 0.0168980
+            raw = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362
+            b6 = white * 0.115926
+            level = 0.085
         case .brown:
-            // Leaky integrator of white noise.
-            brown = (brown + 0.02 * white) / 1.02
-            sample = brown * 3.0
+            // Leaky integrator: −6 dB/octave down to ~20 Hz, so it keeps the deep rumble.
+            brown = brown * 0.9973 + white * 0.03
+            raw = brown
+            level = 0.65
         }
-        return sample * gain
+        smooth += top * (raw - smooth)
+        return smooth * level
     }
 
     /// xorshift32 mapped to [-1, 1]: cheap enough for the render thread.
-    private func random() -> Float {
+    private mutating func random() -> Float {
         seed ^= seed << 13
         seed ^= seed >> 17
         seed ^= seed << 5
