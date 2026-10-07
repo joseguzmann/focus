@@ -26,24 +26,30 @@ struct MenuBarLabel: View {
     let timer: FocusTimer
 
     var body: some View {
-        let fraction = timer.state == .idle ? nil : timer.remainingFraction
-        HStack(spacing: 4) {
-            Image(nsImage: MenuBarIcon.image(remaining: fraction, paused: timer.state == .paused))
-            if timer.state != .idle {
-                Text(timer.timeString)
-                    .monospacedDigit()
-            }
-        }
+        let running = timer.state != .idle
+        Image(nsImage: MenuBarIcon.image(
+            remaining: running ? timer.remainingFraction : nil,
+            paused: timer.state == .paused,
+            time: running ? timer.timeString : nil
+        ))
     }
 }
 
-/// Template icon (adapts to light/dark menu bars): a clock with an open ring,
-/// like the app logo. While running, the ring shows the remaining time.
+/// Template image (adapts to light/dark menu bars): a clock with an open ring, like the
+/// app logo, plus the remaining time in a pill while running. It is drawn as one image
+/// because the menu bar ignores SwiftUI fonts and backgrounds in the label.
 enum MenuBarIcon {
-    static func image(remaining: Double?, paused: Bool) -> NSImage {
-        let size = NSSize(width: 18, height: 18)
+    private static let font = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .bold)
+    private static let pillHeight: CGFloat = 17
+    private static let pillPadding: CGFloat = 6
+    private static let gap: CGFloat = 5
+
+    static func image(remaining: Double?, paused: Bool, time: String?) -> NSImage {
+        let textSize = time.map { ($0 as NSString).size(withAttributes: [.font: font]) } ?? .zero
+        let width = time == nil ? 18 : 18 + gap + ceil(textSize.width) + pillPadding * 2
+        let size = NSSize(width: width, height: 18)
         let image = NSImage(size: size, flipped: false) { rect in
-            let center = NSPoint(x: rect.midX, y: rect.midY)
+            let center = NSPoint(x: 9, y: rect.midY)
             let radius: CGFloat = 7.2
             NSColor.black.setStroke()
 
@@ -90,6 +96,21 @@ enum MenuBarIcon {
                 hands.lineCapStyle = .round
                 hands.lineJoinStyle = .round
                 hands.stroke()
+            }
+
+            if let time {
+                // Filled pill with the digits knocked out, so they show the menu bar through.
+                let pill = NSRect(x: 18 + gap, y: (rect.height - pillHeight) / 2,
+                                  width: rect.width - 18 - gap, height: pillHeight)
+                NSColor.black.setFill()
+                NSBezierPath(roundedRect: pill, xRadius: 5.5, yRadius: 5.5).fill()
+                let context = NSGraphicsContext.current?.cgContext
+                context?.setBlendMode(.destinationOut)
+                (time as NSString).draw(
+                    at: NSPoint(x: pill.minX + pillPadding, y: pill.midY - textSize.height / 2),
+                    withAttributes: [.font: font, .foregroundColor: NSColor.black]
+                )
+                context?.setBlendMode(.normal)
             }
             return true
         }
