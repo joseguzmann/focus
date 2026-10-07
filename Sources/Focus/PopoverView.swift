@@ -234,7 +234,7 @@ struct NoiseControl: View {
                     .overlay {
                         HStack(spacing: 8) {
                             Image(systemName: "speaker.fill")
-                            Slider(value: $timer.prefs.noiseVolume, in: 0.05...1)
+                            Slider(value: $timer.prefs.noiseLevel, in: 0...1)
                                 .controlSize(.mini)
                                 .tint(Theme.focus)
                             Image(systemName: "speaker.wave.3.fill")
@@ -323,7 +323,7 @@ struct NoiseControl: View {
 
     private var speakerSymbol: String {
         guard timer.prefs.noiseEnabled else { return "speaker.slash" }
-        let volume = timer.prefs.noiseVolume
+        let volume = timer.prefs.noiseLevel
         return volume < 0.34 ? "speaker.wave.1" : volume < 0.67 ? "speaker.wave.2" : "speaker.wave.3"
     }
 }

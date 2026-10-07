@@ -39,6 +39,13 @@ final class NoisePlayer {
         engine.connect(source, to: engine.mainMixerNode, format: format)
     }
 
+    /// Maps the slider position to a gain on a decibel scale, which is how loudness is heard:
+    /// a 40 dB range where the middle (−26 dB) is a comfortable background level
+    /// and each quarter of the slider is 10 dB.
+    static func gain(forLevel level: Double) -> Double {
+        0.5 * pow(10, (min(max(level, 0), 1) - 1) * 2)
+    }
+
     func play(_ type: NoiseType, volume: Double) {
         stopWork?.cancel()
         generator.type = type

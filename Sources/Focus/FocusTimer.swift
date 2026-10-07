@@ -23,7 +23,8 @@ struct Preferences: Codable, Equatable {
     var playSound = true
     var noise: NoiseType = .brown
     var noiseEnabled = false
-    var noiseVolume = 0.5
+    /// Slider position (0…1), not a raw gain: see `NoisePlayer.gain(forLevel:)`.
+    var noiseLevel = 0.5
 
     init() {}
 
@@ -36,7 +37,7 @@ struct Preferences: Codable, Equatable {
         playSound = try c.decodeIfPresent(Bool.self, forKey: .playSound) ?? d.playSound
         noise = (try? c.decodeIfPresent(NoiseType.self, forKey: .noise)) ?? d.noise
         noiseEnabled = try c.decodeIfPresent(Bool.self, forKey: .noiseEnabled) ?? d.noiseEnabled
-        noiseVolume = try c.decodeIfPresent(Double.self, forKey: .noiseVolume) ?? d.noiseVolume
+        noiseLevel = try c.decodeIfPresent(Double.self, forKey: .noiseLevel) ?? d.noiseLevel
     }
 }
 
@@ -193,7 +194,7 @@ final class FocusTimer {
 
     private func updateNoise() {
         if isNoisePlaying {
-            noise.play(prefs.noise, volume: prefs.noiseVolume)
+            noise.play(prefs.noise, volume: NoisePlayer.gain(forLevel: prefs.noiseLevel))
         } else {
             noise.stop()
         }
