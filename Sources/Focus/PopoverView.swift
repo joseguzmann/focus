@@ -55,7 +55,7 @@ struct PopoverView: View {
             }
             .frame(maxHeight: .infinity)
         }
-        .frame(width: 300, height: 400)
+        .frame(width: 300, height: 440)
     }
 }
 
@@ -98,7 +98,10 @@ struct TimerScreen: View {
             Spacer(minLength: 12)
 
             if timer.phase == .focus {
-                TagPicker(screen: $screen)
+                VStack(spacing: 8) {
+                    TagPicker(screen: $screen)
+                    NoiseControl()
+                }
             } else {
                 Text("Breathe, stretch, drink some water.")
                     .font(.system(size: 12))
@@ -211,6 +214,72 @@ struct TagPicker: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("What is this pomodoro for?")
+    }
+}
+
+struct NoiseControl: View {
+    @Environment(FocusTimer.self) private var timer
+
+    var body: some View {
+        let on = timer.prefs.noiseEnabled
+        HStack(spacing: 0) {
+            Button { timer.prefs.noiseEnabled.toggle() } label: {
+                Image(systemName: "waveform")
+                    .symbolEffect(.variableColor.iterative, isActive: timer.isNoisePlaying)
+                    .foregroundStyle(on ? Theme.focus : .secondary)
+                    .frame(width: 30, height: 26)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(on ? "Turn background noise off" : "Turn background noise on")
+
+            Menu {
+                ForEach(NoiseType.allCases) { type in
+                    Button {
+                        timer.prefs.noise = type
+                    } label: {
+                        if type == timer.prefs.noise {
+                            Label(type.title, systemImage: "checkmark")
+                        } else {
+                            Text(type.title)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(timer.prefs.noise.title)
+                        .foregroundStyle(on ? .primary : .secondary)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(height: 26)
+                .contentShape(Rectangle())
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Noise type")
+
+            if on {
+                Divider()
+                    .frame(height: 14)
+                    .padding(.leading, 8)
+                Button { timer.noiseMuted.toggle() } label: {
+                    Image(systemName: timer.noiseMuted ? "speaker.slash" : "speaker.wave.2")
+                        .foregroundStyle(timer.noiseMuted ? Theme.focus : .secondary)
+                        .frame(width: 30, height: 26)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(timer.noiseMuted ? "Unmute" : "Mute (the pomodoro keeps running)")
+            }
+        }
+        .font(.system(size: 13))
+        .padding(.leading, 4)
+        .padding(.trailing, on ? 4 : 12)
+        .background(Capsule().fill(on ? Theme.focus.opacity(0.12) : Color.secondary.opacity(0.1)))
     }
 }
 
@@ -341,6 +410,16 @@ struct SettingsScreen: View {
             Divider()
             Toggle("Play sound when done", isOn: $timer.prefs.playSound)
                 .toggleStyle(.checkbox)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Noise volume")
+                HStack(spacing: 8) {
+                    Image(systemName: "speaker.fill")
+                    Slider(value: $timer.prefs.noiseVolume, in: 0.05...1)
+                    Image(systemName: "speaker.wave.3.fill")
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            }
             if timer.hasProgress {
                 Text("Duration changes apply on restart or in the next phase.")
                     .font(.system(size: 11))

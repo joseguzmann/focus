@@ -21,6 +21,23 @@ struct Preferences: Codable, Equatable {
     var focusMinutes = 25
     var breakMinutes = 5
     var playSound = true
+    var noise: NoiseType = .brown
+    var noiseEnabled = false
+    var noiseVolume = 0.5
+
+    init() {}
+
+    /// Missing keys fall back to defaults, so adding a setting never wipes the saved ones.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = Preferences()
+        focusMinutes = try c.decodeIfPresent(Int.self, forKey: .focusMinutes) ?? d.focusMinutes
+        breakMinutes = try c.decodeIfPresent(Int.self, forKey: .breakMinutes) ?? d.breakMinutes
+        playSound = try c.decodeIfPresent(Bool.self, forKey: .playSound) ?? d.playSound
+        noise = (try? c.decodeIfPresent(NoiseType.self, forKey: .noise)) ?? d.noise
+        noiseEnabled = try c.decodeIfPresent(Bool.self, forKey: .noiseEnabled) ?? d.noiseEnabled
+        noiseVolume = try c.decodeIfPresent(Double.self, forKey: .noiseVolume) ?? d.noiseVolume
+    }
 }
 
 struct Tag: Identifiable, Codable, Hashable {
@@ -51,7 +68,13 @@ final class FocusTimer {
         didSet {
             Store.save(prefs, key: Store.prefsKey)
             if state == .idle { resetPhase() }
+            updateNoise()
         }
+    }
+
+    /// Silences the noise for the current pomodoro only; it resets when the pomodoro ends.
+    var noiseMuted = false {
+        didSet { updateNoise() }
     }
 
     private(set) var tags: [Tag] {
@@ -68,6 +91,7 @@ final class FocusTimer {
 
     @ObservationIgnored private var endDate: Date?
     @ObservationIgnored private var ticker: Timer?
+    @ObservationIgnored private let noise = NoisePlayer()
 
     init() {
         prefs = Store.load(Preferences.self, key: Store.prefsKey) ?? Preferences()
@@ -89,6 +113,10 @@ final class FocusTimer {
     }
 
     var hasProgress: Bool { state != .idle || remaining < total }
+
+    var isNoisePlaying: Bool {
+        prefs.noiseEnabled && !noiseMuted && phase == .focus && state == .running
+    }
 
     var selectedTag: Tag? {
         tags.first { $0.id == selectedTagID }
@@ -113,6 +141,7 @@ final class FocusTimer {
         endDate = Date().addingTimeInterval(remaining)
         state = .running
         startTicker()
+        updateNoise()
     }
 
     func pause() {
@@ -121,6 +150,7 @@ final class FocusTimer {
         stopTicker()
         endDate = nil
         state = .paused
+        updateNoise()
     }
 
     /// Restarts the current phase without counting it.
@@ -128,7 +158,9 @@ final class FocusTimer {
         stopTicker()
         endDate = nil
         state = .idle
+        noiseMuted = false
         resetPhase()
+        updateNoise()
     }
 
     /// Moves to the other phase without recording the current one.
@@ -163,6 +195,14 @@ final class FocusTimer {
         let minutes = phase == .focus ? prefs.focusMinutes : prefs.breakMinutes
         total = TimeInterval(minutes * 60)
         remaining = total
+    }
+
+    private func updateNoise() {
+        if isNoisePlaying {
+            noise.play(prefs.noise, volume: prefs.noiseVolume)
+        } else {
+            noise.stop()
+        }
     }
 
     private func startTicker() {

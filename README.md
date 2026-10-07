@@ -5,7 +5,8 @@ A Pomodoro timer for the macOS menu bar.
 - Menu bar icon; while running it shows the remaining time and the icon's ring empties.
 - **Timer**: focus → break (the break starts on its own; you start the next pomodoro). Space bar starts/pauses.
 - **Tags**: every pomodoro belongs to a tag (project, topic…). Create and delete tags in the app and see how many pomodoros each one has today and in total.
-- **Settings**: pomodoro and break length, sound when done.
+- **Background noise**: white, pink or brown noise while a pomodoro runs. Turn it on/off, pick the type, mute it without stopping the pomodoro; it stops when the pomodoro ends. Generated in real time, no audio files.
+- **Settings**: pomodoro and break length, sound when done, noise volume.
 - Notification when each phase ends. No Dock icon.
 - Everything is stored locally in `UserDefaults`; nothing leaves the machine.
 
@@ -35,3 +36,4 @@ To develop without bundling the `.app`: `swift run` (no notifications there, the
 | `Sources/Focus/FocusApp.swift` | Entry point, `MenuBarExtra` and menu bar icon |
 | `Sources/Focus/FocusTimer.swift` | State: timer, tags, completed pomodoros, notifications |
 | `Sources/Focus/PopoverView.swift` | Views: Timer, Tags, Settings |
+| `Sources/Focus/NoisePlayer.swift` | White/pink/brown noise generator (`AVAudioEngine`) |
