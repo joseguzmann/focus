@@ -102,8 +102,6 @@ struct TimerScreen: View {
                     TagPicker(screen: $screen)
                     NoiseControl()
                 }
-                // Keeps the volume panel above the buttons below it.
-                .zIndex(1)
             } else {
                 Text("Breathe, stretch, drink some water.")
                     .font(.system(size: 12))
@@ -221,14 +219,56 @@ struct TagPicker: View {
 
 struct NoiseControl: View {
     @Environment(FocusTimer.self) private var timer
-    @State private var hoverSpeaker = false
-    @State private var hoverPanel = false
+    @State private var hovering = false
     @State private var showVolume = false
 
     var body: some View {
         @Bindable var timer = timer
         let on = timer.prefs.noiseEnabled
-        HStack(spacing: 0) {
+        VStack(spacing: 0) {
+            header
+            if showVolume {
+                // Color.clear takes the header's width, so the slider never widens the control.
+                Color.clear
+                    .frame(height: 30)
+                    .overlay {
+                        HStack(spacing: 8) {
+                            Image(systemName: "speaker.fill")
+                            Slider(value: $timer.prefs.noiseVolume, in: 0.05...1)
+                                .controlSize(.mini)
+                                .tint(Theme.focus)
+                            Image(systemName: "speaker.wave.3.fill")
+                        }
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .opacity(on ? 1 : 0.5)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 4)
+                    }
+                    .transition(.opacity)
+            }
+        }
+        .font(.system(size: 13))
+        .fixedSize()
+        .background(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .fill(on ? Theme.focus.opacity(0.12) : Color.secondary.opacity(0.1))
+        )
+        // Opened from the speaker; stays open while the pointer is anywhere on the control.
+        .onHover { inside in
+            hovering = inside
+            guard !inside else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !hovering else { return }
+                withAnimation(.easeInOut(duration: 0.15)) { showVolume = false }
+            }
+        }
+    }
+
+    private var header: some View {
+        let on = timer.prefs.noiseEnabled
+        return HStack(spacing: 0) {
             Menu {
                 ForEach(NoiseType.allCases) { type in
                     Button {
@@ -266,7 +306,7 @@ struct NoiseControl: View {
                 .padding(.horizontal, 8)
 
             // Clicking the speaker turns the noise on/off without touching the pomodoro;
-            // hovering it drops down the volume panel.
+            // hovering it unfolds the volume below.
             Button { timer.prefs.noiseEnabled.toggle() } label: {
                 Image(systemName: speakerSymbol)
                     .foregroundStyle(on ? Theme.focus : .secondary)
@@ -274,51 +314,12 @@ struct NoiseControl: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .onHover { hoverSpeaker = $0; updateVolumePanel() }
-            .overlay(alignment: .topTrailing) {
-                if showVolume {
-                    HStack(spacing: 8) {
-                        Image(systemName: "speaker.fill")
-                        Slider(value: $timer.prefs.noiseVolume, in: 0.05...1)
-                            .controlSize(.mini)
-                            .tint(Theme.focus)
-                        Image(systemName: "speaker.wave.3.fill")
-                    }
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .opacity(on ? 1 : 0.5)
-                    .padding(.horizontal, 12)
-                    .frame(width: 170, height: 32)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(.regularMaterial)
-                            .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
-                    )
-                    // Right below the capsule, aligned with its right edge.
-                    .offset(x: 6, y: 32)
-                    .onHover { hoverPanel = $0; updateVolumePanel() }
-                    .transition(.opacity.combined(with: .offset(y: -4)))
-                }
+            .onHover { inside in
+                if inside { withAnimation(.easeInOut(duration: 0.15)) { showVolume = true } }
             }
         }
-        .font(.system(size: 13))
         .padding(.leading, 12)
         .padding(.trailing, 6)
-        .background(Capsule().fill(on ? Theme.focus.opacity(0.12) : Color.secondary.opacity(0.1)))
-    }
-
-    /// Opens right away; closes after a short delay so the pointer can travel
-    /// from the speaker to the panel without it disappearing.
-    private func updateVolumePanel() {
-        if hoverSpeaker || hoverPanel {
-            withAnimation(.easeOut(duration: 0.12)) { showVolume = true }
-        } else {
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(250))
-                guard !hoverSpeaker, !hoverPanel else { return }
-                withAnimation(.easeIn(duration: 0.12)) { showVolume = false }
-            }
-        }
     }
 
     private var speakerSymbol: String {
