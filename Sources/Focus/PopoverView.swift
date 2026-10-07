@@ -233,16 +233,7 @@ struct NoiseControl: View {
                     .frame(height: 30)
                     .overlay {
                         HStack(spacing: 8) {
-                            // Mute / unmute lives here; the pomodoro keeps running either way.
-                            Button { timer.prefs.noiseEnabled.toggle() } label: {
-                                Image(systemName: on ? "speaker.fill" : "speaker.slash.fill")
-                                    .foregroundStyle(on ? Theme.focus : .secondary)
-                                    .frame(width: 22, height: 22)
-                                    .background(Circle().fill(Color.secondary.opacity(0.12)))
-                                    .contentShape(Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .help(on ? "Mute noise (the pomodoro keeps running)" : "Unmute noise")
+                            Image(systemName: "speaker.fill")
                             Slider(value: $timer.prefs.noiseVolume, in: 0.05...1)
                                 .controlSize(.mini)
                                 .tint(Theme.focus)
@@ -250,8 +241,7 @@ struct NoiseControl: View {
                         }
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                        .padding(.leading, 10)
-                        .padding(.trailing, 14)
+                        .padding(.horizontal, 14)
                         .padding(.bottom, 4)
                     }
                     .transition(.opacity)
