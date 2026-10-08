@@ -175,6 +175,11 @@ final class FocusTimer {
         if selectedTagID == nil { selectedTagID = tag.id }
     }
 
+    func setColor(_ colorIndex: Int, for id: UUID) {
+        guard let i = tags.firstIndex(where: { $0.id == id }) else { return }
+        tags[i].colorIndex = colorIndex
+    }
+
     /// Pomodoros of the deleted tag become untagged.
     func deleteTag(_ id: UUID) {
         tags.removeAll { $0.id == id }
@@ -263,7 +268,7 @@ enum Notifier {
     }
 
     static func phaseFinished(_ finished: Phase, nextMinutes: Int, sound: Bool) {
-        if sound { NSSound(named: finished == .focus ? "Glass" : "Hero")?.play() }
+        if sound { ChimePlayer.play(finished) }
         guard available else { return }
 
         let content = UNMutableNotificationContent()

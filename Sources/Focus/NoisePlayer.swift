@@ -20,15 +20,19 @@ enum NoiseType: String, Codable, CaseIterable, Identifiable {
 final class NoisePlayer {
     private let engine = AVAudioEngine()
     private let generator: NoiseGenerator
+    private let source: AVAudioSourceNode
+    private let format: AVAudioFormat
     private var stopWork: DispatchWorkItem?
+    private var configObserver: NSObjectProtocol?
 
     init() {
         let outputRate = engine.outputNode.outputFormat(forBus: 0).sampleRate
         let sampleRate = outputRate > 0 ? outputRate : 48_000
         let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
+        self.format = format
         let generator = NoiseGenerator(sampleRate: Float(sampleRate))
         self.generator = generator
-        let source = AVAudioSourceNode(format: format) { _, _, frameCount, bufferList -> OSStatus in
+        source = AVAudioSourceNode(format: format) { _, _, frameCount, bufferList -> OSStatus in
             let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
             guard let left = buffers[0].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
             let right = buffers.count > 1 ? buffers[1].mData?.assumingMemoryBound(to: Float.self) : nil
@@ -37,6 +41,24 @@ final class NoisePlayer {
         }
         engine.attach(source)
         engine.connect(source, to: engine.mainMixerNode, format: format)
+
+        // Switching the output (headphones ↔ Mac speakers) stops the engine; restart it
+        // on the new device so the noise keeps playing.
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+        ) { [weak self] _ in
+            self?.restartAfterDeviceChange()
+        }
+    }
+
+    deinit {
+        if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
+    }
+
+    private func restartAfterDeviceChange() {
+        engine.stop()
+        engine.connect(source, to: engine.mainMixerNode, format: format)
+        if generator.targetGain > 0 { try? engine.start() }
     }
 
     /// Maps the slider position to a gain on a decibel scale, which is how loudness is heard:

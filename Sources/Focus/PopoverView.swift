@@ -18,6 +18,8 @@ enum TagColor {
         Color(red: 0.90, green: 0.40, blue: 0.62), // pink
         Color(red: 0.25, green: 0.68, blue: 0.80), // sky
         Color(red: 0.75, green: 0.62, blue: 0.30), // ochre
+        Color(red: 0.88, green: 0.33, blue: 0.33), // red
+        Color(red: 0.50, green: 0.55, blue: 0.62), // slate
     ]
 
     static func color(_ tag: Tag?) -> Color {
@@ -233,11 +235,11 @@ struct NoiseControl: View {
                     .frame(height: 30)
                     .overlay {
                         HStack(spacing: 8) {
-                            Image(systemName: "speaker.fill")
+                            VolumeStepButton(systemName: "speaker.fill", help: "Quieter", delta: -0.1)
                             Slider(value: $timer.prefs.noiseLevel, in: 0...1)
                                 .controlSize(.mini)
                                 .tint(Theme.focus)
-                            Image(systemName: "speaker.wave.3.fill")
+                            VolumeStepButton(systemName: "speaker.wave.3.fill", help: "Louder", delta: 0.1)
                         }
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
@@ -328,6 +330,52 @@ struct NoiseControl: View {
     }
 }
 
+/// Nudges the noise volume one step (≈4 dB) per click.
+struct VolumeStepButton: View {
+    @Environment(FocusTimer.self) private var timer
+    let systemName: String
+    let help: String
+    let delta: Double
+
+    var body: some View {
+        Button {
+            timer.prefs.noiseLevel = min(max(timer.prefs.noiseLevel + delta, 0), 1)
+        } label: {
+            Image(systemName: systemName)
+                .frame(width: 18, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+}
+
+struct TagColorPicker: View {
+    let selected: Int
+    let choose: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(TagColor.palette.indices, id: \.self) { index in
+                Button { choose(index) } label: {
+                    Circle()
+                        .fill(TagColor.palette[index])
+                        .frame(width: 18, height: 18)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.primary.opacity(0.6), lineWidth: 2)
+                                .padding(-3)
+                                .opacity(index == selected % TagColor.palette.count ? 1 : 0)
+                        )
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(12)
+    }
+}
+
 struct RoundIconButton: View {
     let systemName: String
     let help: String
@@ -405,12 +453,33 @@ struct TagRow: View {
     @Environment(FocusTimer.self) private var timer
     let tag: Tag?
     @State private var hovering = false
+    @State private var pickingColor = false
 
     var body: some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(TagColor.color(tag))
-                .frame(width: 8, height: 8)
+            if let tag {
+                Button { pickingColor = true } label: {
+                    Circle()
+                        .fill(TagColor.color(tag))
+                        .frame(width: 10, height: 10)
+                        .overlay(Circle().stroke(Color.primary.opacity(hovering ? 0.35 : 0), lineWidth: 1).padding(-2))
+                        .frame(width: 16, height: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Change color")
+                .popover(isPresented: $pickingColor, arrowEdge: .bottom) {
+                    TagColorPicker(selected: tag.colorIndex) { index in
+                        timer.setColor(index, for: tag.id)
+                        pickingColor = false
+                    }
+                }
+            } else {
+                Circle()
+                    .fill(TagColor.color(nil))
+                    .frame(width: 10, height: 10)
+                    .frame(width: 16, height: 16)
+            }
             Text(tag?.name ?? "No tag")
                 .lineLimit(1)
                 .foregroundStyle(tag == nil ? .secondary : .primary)
@@ -451,7 +520,7 @@ struct SettingsScreen: View {
             MinutesField(title: "Break", color: Theme.rest,
                          value: $timer.prefs.breakMinutes, range: 1...60)
             Divider()
-            Toggle("Play sound when done", isOn: $timer.prefs.playSound)
+            Toggle("Chime when a pomodoro or break ends", isOn: $timer.prefs.playSound)
                 .toggleStyle(.checkbox)
             if timer.hasProgress {
                 Text("Duration changes apply on restart or in the next phase.")

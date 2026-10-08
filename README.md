@@ -30,21 +30,22 @@ project. No account, no Dock icon, no data leaving your Mac.
 - The menu bar icon shows the remaining time while a pomodoro runs, and its ring empties as time passes.
 - Focus → break cycle. Breaks start on their own; you decide when the next pomodoro starts.
 - Start, pause, restart or skip a phase. The space bar starts/pauses.
-- A notification and a sound when each phase ends.
+- A notification and a soft bell chime when each phase ends: descending when a pomodoro ends, ascending when a break ends.
 
 **🏷 Tags**
 - Every pomodoro belongs to a tag: a project, a client, a topic.
-- Create and delete tags in the app and see how many pomodoros each one has today and in total.
+- Create and delete tags, pick their color, and see how many pomodoros each one has today and in total.
 - Deleting a tag keeps its pomodoros as *No tag*, so your history is never lost.
 
 **🎧 Background noise for deep work**
 - White, pink or brown noise while a pomodoro runs, and only then: it stops on pause, on break and when the pomodoro ends.
-- Click the speaker to mute/unmute without stopping the pomodoro; hover it to change the volume.
+- Click the speaker to mute/unmute without stopping the pomodoro; hover it to change the volume (drag the slider or click the small speakers to step it).
+- Keeps playing when you switch outputs (headphones ↔ speakers).
 - Generated in real time in stereo, with independent noise for each ear and a gentle low-pass,
   so it sounds wide and soft instead of harsh. No audio files, so there is no loop to notice.
 
 **⚙️ Settings**
-- Pomodoro and break length, and whether to play a sound when a phase ends.
+- Pomodoro and break length (type them or use the arrows), and whether to chime when a phase ends.
 
 ## Install
 
@@ -79,6 +80,7 @@ swift run   # runs without bundling (notifications need the .app, so they are sk
 | `Sources/Focus/FocusTimer.swift` | State: timer, tags, completed pomodoros, notifications |
 | `Sources/Focus/PopoverView.swift` | Views: Timer, Tags, Settings |
 | `Sources/Focus/NoisePlayer.swift` | White/pink/brown noise generator (`AVAudioEngine`) |
+| `Sources/Focus/ChimePlayer.swift` | Synthesized end-of-phase bell chime |
 | `scripts/build-app.sh` | Builds and bundles `Focus.app` |
 | `scripts/make-icon.sh` | Regenerates `Resources/AppIcon.icns` from `scripts/make-icon.swift` |
 
