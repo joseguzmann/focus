@@ -446,12 +446,10 @@ struct SettingsScreen: View {
     var body: some View {
         @Bindable var timer = timer
         VStack(alignment: .leading, spacing: 14) {
-            Stepper(value: $timer.prefs.focusMinutes, in: 1...120) {
-                SettingLabel(title: "Pomodoro", value: "\(timer.prefs.focusMinutes) min", color: Theme.focus)
-            }
-            Stepper(value: $timer.prefs.breakMinutes, in: 1...60) {
-                SettingLabel(title: "Break", value: "\(timer.prefs.breakMinutes) min", color: Theme.rest)
-            }
+            MinutesField(title: "Pomodoro", color: Theme.focus,
+                         value: $timer.prefs.focusMinutes, range: 1...120)
+            MinutesField(title: "Break", color: Theme.rest,
+                         value: $timer.prefs.breakMinutes, range: 1...60)
             Divider()
             Toggle("Play sound when done", isOn: $timer.prefs.playSound)
                 .toggleStyle(.checkbox)
@@ -471,19 +469,52 @@ struct SettingsScreen: View {
     }
 }
 
-struct SettingLabel: View {
+/// Minutes you can type directly (Return or clicking away applies them), nudge with the
+/// arrow keys, or step with the stepper. Out-of-range values are clamped.
+struct MinutesField: View {
     let title: String
-    let value: String
     let color: Color
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    @State private var text = ""
+    @FocusState private var focused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
             Circle().fill(color).frame(width: 8, height: 8)
             Text(title)
             Spacer()
-            Text(value)
+            TextField("", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
                 .monospacedDigit()
+                .frame(width: 46)
+                .focused($focused)
+                .onSubmit(commit)
+                .onChange(of: focused) { _, isFocused in
+                    if !isFocused { commit() }
+                }
+                .onKeyPress(.upArrow) { step(1) }
+                .onKeyPress(.downArrow) { step(-1) }
+            Text("min")
                 .foregroundStyle(.secondary)
+            Stepper("", value: $value, in: range)
+                .labelsHidden()
         }
+        .onAppear { text = "\(value)" }
+        .onChange(of: value) { _, newValue in text = "\(newValue)" }
+    }
+
+    private func commit() {
+        if let typed = Int(text.trimmingCharacters(in: .whitespaces)) {
+            value = min(max(typed, range.lowerBound), range.upperBound)
+        }
+        text = "\(value)"
+    }
+
+    private func step(_ delta: Int) -> KeyPress.Result {
+        commit()
+        value = min(max(value + delta, range.lowerBound), range.upperBound)
+        return .handled
     }
 }
