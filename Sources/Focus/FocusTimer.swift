@@ -17,6 +17,16 @@ enum RunState {
     case idle, running, paused
 }
 
+/// What the break window shows, if anything.
+enum BreakWindowMode {
+    /// A pomodoro just ended: offer to start the break.
+    case breakReady
+    /// The break is running: big countdown, readable from across the room.
+    case onBreak
+    /// The break just ended: offer to get back to work.
+    case workReady
+}
+
 struct Preferences: Codable, Equatable {
     var focusMinutes = 25
     var breakMinutes = 5
@@ -85,6 +95,9 @@ final class FocusTimer {
         didSet { Store.save(pomodoros, key: Store.pomodorosKey) }
     }
 
+    /// Set when a phase ends, until you act on it (or dismiss the window).
+    private(set) var pendingWindow: BreakWindowMode?
+
     @ObservationIgnored private var endDate: Date?
     @ObservationIgnored private var ticker: Timer?
     @ObservationIgnored private let noise = NoisePlayer()
@@ -110,6 +123,11 @@ final class FocusTimer {
 
     var hasProgress: Bool { state != .idle || remaining < total }
 
+    var breakWindowMode: BreakWindowMode? {
+        if let pendingWindow { return pendingWindow }
+        return phase == .rest && state != .idle ? .onBreak : nil
+    }
+
     var isNoisePlaying: Bool {
         prefs.noiseEnabled && phase == .focus && state == .running
     }
@@ -134,6 +152,7 @@ final class FocusTimer {
 
     func start() {
         guard state != .running else { return }
+        pendingWindow = nil
         endDate = Date().addingTimeInterval(remaining)
         state = .running
         startTicker()
@@ -154,6 +173,7 @@ final class FocusTimer {
         stopTicker()
         endDate = nil
         state = .idle
+        pendingWindow = nil
         resetPhase()
         updateNoise()
     }
@@ -163,6 +183,17 @@ final class FocusTimer {
         reset()
         phase = phase == .focus ? .rest : .focus
         resetPhase()
+    }
+
+    /// Ends the break (early or not) and starts the next pomodoro right away.
+    func backToWork() {
+        if phase == .rest { skip() }
+        start()
+    }
+
+    /// Closes the break window without starting anything.
+    func dismissWindow() {
+        pendingWindow = nil
     }
 
     // MARK: - Tags
@@ -236,8 +267,8 @@ final class FocusTimer {
         resetPhase()
         Notifier.phaseFinished(finished, nextMinutes: Int(total / 60), sound: prefs.playSound)
 
-        // Breaks start on their own; the next focus waits for you to start it.
-        if phase == .rest { start() }
+        // Nothing starts on its own: the break window asks first.
+        pendingWindow = finished == .focus ? .breakReady : .workReady
     }
 }
 

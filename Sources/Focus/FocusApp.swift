@@ -3,12 +3,16 @@ import SwiftUI
 
 @main
 struct FocusApp: App {
-    @State private var timer = FocusTimer()
+    @State private var timer: FocusTimer
+    private let breakWindow: BreakWindowController
 
     init() {
         // No Dock icon: the app lives only in the menu bar.
         NSApplication.shared.setActivationPolicy(.accessory)
         Notifier.requestAuthorization()
+        let timer = FocusTimer()
+        _timer = State(initialValue: timer)
+        breakWindow = BreakWindowController(timer: timer)
     }
 
     var body: some Scene {

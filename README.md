@@ -28,7 +28,7 @@ project. No account, no Dock icon, no data leaving your Mac.
 
 **⏱ Timer in the menu bar**
 - The menu bar icon shows the remaining time while a pomodoro runs, and its ring empties as time passes.
-- Focus → break cycle. Breaks start on their own; you decide when the next pomodoro starts.
+- Focus → break cycle, and nothing starts by surprise: when a pomodoro ends, a window asks you to start the break; during the break it shows a big countdown you can read from across the room; when the break ends, it offers to get back to work.
 - Start, pause, restart or skip a phase. The space bar starts/pauses.
 - A notification and a soft bell chime when each phase ends: descending when a pomodoro ends, ascending when a break ends.
 
@@ -81,6 +81,7 @@ swift run   # runs without bundling (notifications need the .app, so they are sk
 | `Sources/Focus/PopoverView.swift` | Views: Timer, Tags, Settings |
 | `Sources/Focus/NoisePlayer.swift` | White/pink/brown noise generator (`AVAudioEngine`) |
 | `Sources/Focus/ChimePlayer.swift` | Synthesized end-of-phase bell chime |
+| `Sources/Focus/BreakWindow.swift` | Floating window: pomodoro done, big break countdown, back to work |
 | `scripts/build-app.sh` | Builds and bundles `Focus.app` |
 | `scripts/make-icon.sh` | Regenerates `Resources/AppIcon.icns` from `scripts/make-icon.swift` |
 
