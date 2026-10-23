@@ -1,15 +1,15 @@
 import AVFoundation
 
-/// End-of-phase chime: a soft bell arpeggio played twice (~3.5 s), noticeable without being
-/// an alarm. Descending when a pomodoro ends (time to relax), ascending when a break ends
+/// End-of-phase chime: a soft, warm bell arpeggio played twice (~3.7 s), noticeable without
+/// being an alarm. Descending when a pomodoro ends (time to relax), ascending when a break ends
 /// (back to work). Synthesized, so there are no audio files.
 enum ChimePlayer {
     /// The engine playing the current chime; kept alive until it finishes.
     private static var engine: AVAudioEngine?
 
     static func play(_ finished: Phase) {
-        // C6, E6, G6.
-        let notes: [Double] = [1046.5, 1318.5, 1568.0]
+        // C5, E5, G5: an octave lower than before, which sounded shrill.
+        let notes: [Double] = [523.25, 659.25, 783.99]
         guard let buffer = render(notes: finished == .focus ? notes.reversed() : notes) else { return }
 
         // A fresh engine per chime always plays on the current output device.
@@ -50,17 +50,17 @@ enum ChimePlayer {
         for (n, start) in starts.enumerated() {
             let freq = notes[n % notes.count]
             // The second round is a bit softer, so it reads as an echo, not a second alarm.
-            let level: Float = n < notes.count ? 0.16 : 0.11
+            let level: Float = n < notes.count ? 0.2 : 0.14
             let first = Int(start * sampleRate)
             let count = min(Int(ring * sampleRate), Int(frames) - first)
             for k in 0..<count {
                 let t = Double(k) / sampleRate
-                let attack = min(1, t / 0.006)
-                let decay = exp(-t / 0.45)
-                // Bell-like partials: fundamental plus soft, slightly inharmonic overtones.
+                // A slightly slower attack takes the click off the strike.
+                let attack = min(1, t / 0.015)
+                let decay = exp(-t / 0.5)
+                // Mostly the fundamental, with one faint, fast-fading overtone for the bell color.
                 let tone = sin(2 * .pi * freq * t)
-                    + 0.35 * sin(2 * .pi * freq * 2.01 * t) * exp(-t / 0.25)
-                    + 0.12 * sin(2 * .pi * freq * 3.02 * t) * exp(-t / 0.15)
+                    + 0.15 * sin(2 * .pi * freq * 2.0 * t) * exp(-t / 0.2)
                 left[first + k] += level * Float(attack * decay * tone)
             }
         }

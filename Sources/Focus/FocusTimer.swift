@@ -35,6 +35,7 @@ struct Preferences: Codable, Equatable {
     var noiseEnabled = false
     /// Slider position (0…1), not a raw gain: see `NoisePlayer.gain(forLevel:)`.
     var noiseLevel = 0.5
+    var showTimeInMenuBar = true
 
     init() {}
 
@@ -48,6 +49,7 @@ struct Preferences: Codable, Equatable {
         noise = (try? c.decodeIfPresent(NoiseType.self, forKey: .noise)) ?? d.noise
         noiseEnabled = try c.decodeIfPresent(Bool.self, forKey: .noiseEnabled) ?? d.noiseEnabled
         noiseLevel = try c.decodeIfPresent(Double.self, forKey: .noiseLevel) ?? d.noiseLevel
+        showTimeInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showTimeInMenuBar) ?? d.showTimeInMenuBar
     }
 }
 
@@ -204,6 +206,13 @@ final class FocusTimer {
         let tag = Tag(name: trimmed, colorIndex: tags.count % TagColor.palette.count)
         tags.append(tag)
         if selectedTagID == nil { selectedTagID = tag.id }
+    }
+
+    /// Pomodoros keep pointing at the tag by id, so they follow the new name.
+    func renameTag(_ id: UUID, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let i = tags.firstIndex(where: { $0.id == id }) else { return }
+        tags[i].name = trimmed
     }
 
     func setColor(_ colorIndex: Int, for id: UUID) {

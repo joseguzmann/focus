@@ -27,14 +27,14 @@ project. No account, no Dock icon, no data leaving your Mac.
 ## Features
 
 **⏱ Timer in the menu bar**
-- The menu bar icon shows the remaining time while a pomodoro runs, and its ring empties as time passes.
+- The menu bar icon shows the remaining time while a pomodoro runs, and its ring empties as time passes. Prefer not to see the numbers? Turn them off and keep just the ring.
 - Focus → break cycle, and nothing starts by surprise: when a pomodoro ends, a window asks you to start the break; during the break it shows a big countdown you can read from across the room; when the break ends, it offers to get back to work.
 - Start, pause, restart or skip a phase. The space bar starts/pauses.
-- A notification and a soft bell chime when each phase ends: descending when a pomodoro ends, ascending when a break ends.
+- A notification and a soft, warm bell chime when each phase ends: descending when a pomodoro ends, ascending when a break ends.
 
 **🏷 Tags**
 - Every pomodoro belongs to a tag: a project, a client, a topic.
-- Create and delete tags, pick their color, and see how many pomodoros each one has today and in total.
+- Create, rename and delete tags, pick their color, and see how many pomodoros each one has today and in total. Double-click a name to rename it, or right-click a tag for all its options.
 - Deleting a tag keeps its pomodoros as *No tag*, so your history is never lost.
 
 **🎧 Background noise for deep work**
@@ -45,7 +45,7 @@ project. No account, no Dock icon, no data leaving your Mac.
   so it sounds wide and soft instead of harsh. No audio files, so there is no loop to notice.
 
 **⚙️ Settings**
-- Pomodoro and break length (type them or use the arrows), and whether to chime when a phase ends.
+- Pomodoro and break length (type them or use the arrows), whether to chime when a phase ends, and whether to show the time in the menu bar.
 
 ## Install
 

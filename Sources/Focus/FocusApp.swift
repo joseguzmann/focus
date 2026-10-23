@@ -34,7 +34,7 @@ struct MenuBarLabel: View {
         Image(nsImage: MenuBarIcon.image(
             remaining: running ? timer.remainingFraction : nil,
             paused: timer.state == .paused,
-            time: running ? timer.timeString : nil
+            time: running && timer.prefs.showTimeInMenuBar ? timer.timeString : nil
         ))
     }
 }

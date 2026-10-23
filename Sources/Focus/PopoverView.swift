@@ -454,6 +454,9 @@ struct TagRow: View {
     let tag: Tag?
     @State private var hovering = false
     @State private var pickingColor = false
+    @State private var editing = false
+    @State private var draft = ""
+    @FocusState private var nameFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -480,11 +483,29 @@ struct TagRow: View {
                     .frame(width: 10, height: 10)
                     .frame(width: 16, height: 16)
             }
-            Text(tag?.name ?? "No tag")
-                .lineLimit(1)
-                .foregroundStyle(tag == nil ? .secondary : .primary)
-            Spacer()
-            if hovering, let tag {
+            if editing, let tag {
+                TextField("Tag name", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($nameFocused)
+                    .onSubmit { commitRename(tag) }
+                    .onExitCommand { editing = false }
+                    .onChange(of: nameFocused) { _, isFocused in
+                        if !isFocused { commitRename(tag) }
+                    }
+            } else {
+                Text(tag?.name ?? "No tag")
+                    .lineLimit(1)
+                    .foregroundStyle(tag == nil ? .secondary : .primary)
+                    .onTapGesture(count: 2) { if let tag { beginRename(tag) } }
+                Spacer()
+            }
+            if hovering, !editing, let tag {
+                Button { beginRename(tag) } label: {
+                    Image(systemName: "pencil")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Rename tag")
                 Button { timer.deleteTag(tag.id) } label: {
                     Image(systemName: "trash")
                         .foregroundStyle(.secondary)
@@ -504,6 +525,26 @@ struct TagRow: View {
         .frame(height: 32)
         .background(hovering ? Color.secondary.opacity(0.08) : Color.clear)
         .onHover { hovering = $0 }
+        .contextMenu {
+            if let tag {
+                Button("Rename") { beginRename(tag) }
+                Button("Change color") { pickingColor = true }
+                Divider()
+                Button("Delete", role: .destructive) { timer.deleteTag(tag.id) }
+            }
+        }
+    }
+
+    private func beginRename(_ tag: Tag) {
+        draft = tag.name
+        editing = true
+        DispatchQueue.main.async { nameFocused = true }
+    }
+
+    private func commitRename(_ tag: Tag) {
+        guard editing else { return }
+        timer.renameTag(tag.id, to: draft)
+        editing = false
     }
 }
 
@@ -521,6 +562,8 @@ struct SettingsScreen: View {
                          value: $timer.prefs.breakMinutes, range: 1...60)
             Divider()
             Toggle("Chime when a pomodoro or break ends", isOn: $timer.prefs.playSound)
+                .toggleStyle(.checkbox)
+            Toggle("Show the remaining time in the menu bar", isOn: $timer.prefs.showTimeInMenuBar)
                 .toggleStyle(.checkbox)
             if timer.hasProgress {
                 Text("Duration changes apply on restart or in the next phase.")
