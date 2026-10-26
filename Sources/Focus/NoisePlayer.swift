@@ -18,21 +18,34 @@ enum NoiseType: String, Codable, CaseIterable, Identifiable {
 /// Each ear gets its own independent noise, which sounds wide instead of "inside the head".
 /// Fades in and out to avoid clicks, and stops the engine when silent.
 final class NoisePlayer {
-    private let engine = AVAudioEngine()
-    private let generator: NoiseGenerator
-    private let source: AVAudioSourceNode
-    private let format: AVAudioFormat
+    private var engine = AVAudioEngine()
+    private var generator = NoiseGenerator(sampleRate: 48_000)
     private var stopWork: DispatchWorkItem?
     private var configObserver: NSObjectProtocol?
 
     init() {
+        build()
+    }
+
+    deinit {
+        if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
+    }
+
+    /// Builds a fresh engine for the current output device. Reconnecting the old engine
+    /// after a device switch is not enough: it can keep the old device's buffer size, and
+    /// then every render fails silently (kAudioUnitErr_TooManyFramesToProcess).
+    private func build() {
+        if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
+        engine.stop()
+
+        let engine = AVAudioEngine()
         let outputRate = engine.outputNode.outputFormat(forBus: 0).sampleRate
         let sampleRate = outputRate > 0 ? outputRate : 48_000
         let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
-        self.format = format
         let generator = NoiseGenerator(sampleRate: Float(sampleRate))
-        self.generator = generator
-        source = AVAudioSourceNode(format: format) { _, _, frameCount, bufferList -> OSStatus in
+        generator.type = self.generator.type
+        generator.targetGain = self.generator.targetGain
+        let source = AVAudioSourceNode(format: format) { _, _, frameCount, bufferList -> OSStatus in
             let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
             guard let left = buffers[0].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
             let right = buffers.count > 1 ? buffers[1].mData?.assumingMemoryBound(to: Float.self) : nil
@@ -41,8 +54,10 @@ final class NoisePlayer {
         }
         engine.attach(source)
         engine.connect(source, to: engine.mainMixerNode, format: format)
+        self.engine = engine
+        self.generator = generator
 
-        // Switching the output (headphones ↔ Mac speakers) stops the engine; restart it
+        // Switching the output (headphones ↔ Mac speakers) stops the engine; rebuild it
         // on the new device so the noise keeps playing.
         configObserver = NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
@@ -51,14 +66,18 @@ final class NoisePlayer {
         }
     }
 
-    deinit {
-        if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
+    private func restartAfterDeviceChange() {
+        build()
+        if generator.targetGain > 0 { start() }
     }
 
-    private func restartAfterDeviceChange() {
-        engine.stop()
-        engine.connect(source, to: engine.mainMixerNode, format: format)
-        if generator.targetGain > 0 { try? engine.start() }
+    /// Starts the engine; if the device refuses, rebuilds once and tries again.
+    private func start() {
+        guard !engine.isRunning else { return }
+        if (try? engine.start()) == nil {
+            build()
+            try? engine.start()
+        }
     }
 
     /// Maps the slider position to a gain on a decibel scale, which is how loudness is heard:
@@ -70,18 +89,20 @@ final class NoisePlayer {
 
     func play(_ type: NoiseType, volume: Double) {
         stopWork?.cancel()
+        stopWork = nil
         generator.type = type
         generator.targetGain = Float(volume)
-        if !engine.isRunning { try? engine.start() }
+        start()
     }
 
     func stop() {
         generator.targetGain = 0
-        guard engine.isRunning, stopWork == nil || stopWork!.isCancelled else { return }
+        guard engine.isRunning, stopWork == nil else { return }
         // Let the fade-out finish before releasing the audio device.
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.generator.targetGain == 0 else { return }
-            self.engine.pause()
+            guard let self else { return }
+            self.stopWork = nil
+            if self.generator.targetGain == 0 { self.engine.pause() }
         }
         stopWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
